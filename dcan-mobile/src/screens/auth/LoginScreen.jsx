@@ -21,9 +21,6 @@ export default function LoginScreen({ navigation }) {
     if (!result.success) {
       alert(result.message);
     }
-    // QUITA ESTA LÍNEA:
-    // navigation.replace("Dashboard");
-    // El App.js lo hace automáticamente con conditional rendering
 };
 
   return (

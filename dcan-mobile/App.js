@@ -5,12 +5,13 @@ import { PaperProvider } from "react-native-paper";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import ClientTabs from "./src/navigation/ClientTabs";
+import InicioScreen from "./src/screens/Inicio/Inicio"; 
 import { View, ActivityIndicator } from "react-native";
 
 const Stack = createNativeStackNavigator();
 
 function AppContent() {
-  const { user, loading, loadToken } = useAuth();
+  const { loading, loadToken } = useAuth();
 
   useEffect(() => {
     loadToken();
@@ -26,11 +27,12 @@ function AppContent() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {user ? (
-        <Stack.Screen name="Dashboard" component={ClientTabs} />
-      ) : (
-        <Stack.Screen name="Login" component={LoginScreen} />
-      )}
+      {/* ✅ PRIMERA PANTALLA AL ABRIR */}
+      <Stack.Screen name="Inicio" component={InicioScreen} />
+
+      {/* (Opcional) Deja estas por si luego navegas a ellas */}
+      <Stack.Screen name="Dashboard" component={ClientTabs} />
+      <Stack.Screen name="Login" component={LoginScreen} />
     </Stack.Navigator>
   );
 }
