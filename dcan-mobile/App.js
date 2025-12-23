@@ -7,6 +7,7 @@ import LoginScreen from "./src/screens/auth/LoginScreen";
 import ClientTabs from "./src/navigation/ClientTabs";
 import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 import { View, ActivityIndicator } from "react-native";
+import RegisterScreen from "./src/screens/auth/RegisterScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -35,6 +36,7 @@ function AppContent() {
         <>
           <Stack.Screen name="ClinicsDirectory" component={ClinicsDirectory} />
           <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
         </>
       )}
     </Stack.Navigator>

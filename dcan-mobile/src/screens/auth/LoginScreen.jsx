@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import { View, StyleSheet, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { TextInput, Button, Title, Card, Paragraph } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
+import { useRoute, useNavigation } from "@react-navigation/native";  // ← Agregamos useRoute
 import axios from "axios";
 
 export default function LoginScreen({ navigation }) {
+  const route = useRoute();  // ← Ahora sí tenemos route
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,10 +23,7 @@ export default function LoginScreen({ navigation }) {
     if (!result.success) {
       alert(result.message);
     }
-    // QUITA ESTA LÍNEA:
-    // navigation.replace("Dashboard");
-    // El App.js lo hace automáticamente con conditional rendering
-};
+  };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
@@ -66,8 +65,13 @@ export default function LoginScreen({ navigation }) {
               Iniciar Sesión
             </Button>
 
-            
-
+            <Button
+              mode="text"
+              onPress={() => navigation.navigate("Register", { selectedClinic: route.params?.selectedClinic })}
+              style={styles.link}
+            >
+              ¿No tienes cuenta? Registrarse
+            </Button>
           </Card.Content>
         </Card>
       </View>
