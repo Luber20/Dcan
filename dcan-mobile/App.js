@@ -5,6 +5,7 @@ import { PaperProvider } from "react-native-paper";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import ClientTabs from "./src/navigation/ClientTabs";
+import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 import { View, ActivityIndicator } from "react-native";
 
 const Stack = createNativeStackNavigator();
@@ -27,9 +28,14 @@ function AppContent() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
+        // Si está logueado → solo dashboard (tabs)
         <Stack.Screen name="Dashboard" component={ClientTabs} />
       ) : (
-        <Stack.Screen name="Login" component={LoginScreen} />
+        // Si NO está logueado → directorio como inicial, login secundario
+        <>
+          <Stack.Screen name="ClinicsDirectory" component={ClinicsDirectory} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+        </>
       )}
     </Stack.Navigator>
   );
