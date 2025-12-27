@@ -10,7 +10,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = "http://192.168.100.55:8000/api";  // Tu IP local
+const API_URL = "http://192.168.18.10:8000/api";
+  // Tu IP local
 
   useEffect(() => {
     loadToken();
