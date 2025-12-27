@@ -1,0 +1,51 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Models\Clinic;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
+
+class RegisterController extends Controller
+{
+    public function registerClient(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6|confirmed',
+            'clinic_id' => 'required|exists:clinics,id',  // La clínica debe existir
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Errores de validación',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'clinic_id' => $request->clinic_id,
+        ]);
+
+        // Asignamos el role "client"
+        $user->assignRole('client');
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Registro exitoso',
+            'user' => $user->load('roles'),
+            'clinic_id' => $request->clinic_id,
+            'token' => $token,
+            'token_type' => 'Bearer',
+        ], 201);
+    }
+}
