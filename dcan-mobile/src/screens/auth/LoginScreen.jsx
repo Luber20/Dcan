@@ -2,35 +2,47 @@ import React, { useState } from "react";
 import { View, StyleSheet, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { TextInput, Button, Title, Card, Paragraph } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
-import { useRoute, useNavigation } from "@react-navigation/native";  // ← Agregamos useRoute
-import axios from "axios";
+import { useRoute } from "@react-navigation/native";
 
 export default function LoginScreen({ navigation }) {
-  const route = useRoute();  // ← Ahora sí tenemos route
+  const route = useRoute();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
+  // ✅ FUNCIÓN BIEN CERRADA
   const handleLogin = async () => {
     if (!email || !password) {
       alert("Por favor ingresa email y contraseña");
       return;
     }
+
     setLoading(true);
     const result = await login(email.trim().toLowerCase(), password);
     setLoading(false);
+
     if (!result.success) {
       alert(result.message);
     }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+    >
       <View style={styles.inner}>
-        <Image source={require("../../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
+        <Image
+          source={require("../../../assets/logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+
         <Title style={styles.title}>D’CAN</Title>
-        <Paragraph style={styles.subtitle}>Veterinaria de confianza</Paragraph>
+        <Paragraph style={styles.subtitle}>
+          Veterinaria de confianza
+        </Paragraph>
 
         <Card style={styles.card}>
           <Card.Content>
@@ -43,6 +55,7 @@ export default function LoginScreen({ navigation }) {
               theme={{ roundness: 15 }}
               left={<TextInput.Icon icon="email-outline" />}
             />
+
             <TextInput
               label="Contraseña"
               value={password}
@@ -53,6 +66,7 @@ export default function LoginScreen({ navigation }) {
               theme={{ roundness: 15 }}
               left={<TextInput.Icon icon="lock-outline" />}
             />
+
             <Button
               mode="contained"
               onPress={handleLogin}
@@ -67,7 +81,11 @@ export default function LoginScreen({ navigation }) {
 
             <Button
               mode="text"
-              onPress={() => navigation.navigate("Register", { selectedClinic: route.params?.selectedClinic })}
+              onPress={() =>
+                navigation.navigate("Register", {
+                  selectedClinic: route.params?.selectedClinic,
+                })
+              }
               style={styles.link}
             >
               ¿No tienes cuenta? Registrarse
@@ -81,11 +99,31 @@ export default function LoginScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#E8F5E8" },
-  inner: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
+  inner: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
   logo: { width: 150, height: 150, marginBottom: 20 },
-  title: { fontSize: 42, fontWeight: "bold", color: "#2E8B57", marginBottom: 8 },
-  subtitle: { fontSize: 18, color: "#666", marginBottom: 40, textAlign: "center" },
-  card: { width: "100%", borderRadius: 20, elevation: 10, backgroundColor: "#fff" },
+  title: {
+    fontSize: 42,
+    fontWeight: "bold",
+    color: "#2E8B57",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 18,
+    color: "#666",
+    marginBottom: 40,
+    textAlign: "center",
+  },
+  card: {
+    width: "100%",
+    borderRadius: 20,
+    elevation: 10,
+    backgroundColor: "#fff",
+  },
   input: { marginBottom: 16, backgroundColor: "#fff" },
   button: { marginTop: 20, backgroundColor: "#2E8B57" },
   buttonContent: { height: 55 },
