@@ -5,12 +5,14 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { PaperProvider } from "react-native-paper";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
+import { ThemeProvider } from "./src/context/ThemeContext";
 
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import RegisterScreen from "./src/screens/auth/RegisterScreen";
 import ClientTabs from "./src/navigation/ClientTabs";
 import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
-// import InicioScreen from "./src/screens/Inicio/Inicio"; // (tu pantalla, si luego la quieres usar)
+
+
 
 const Stack = createNativeStackNavigator();
 
@@ -53,12 +55,14 @@ function AppContent() {
 
 export default function App() {
   return (
-    <PaperProvider>
-      <AuthProvider>
-        <NavigationContainer>
-          <AppContent />
-        </NavigationContainer>
-      </AuthProvider>
-    </PaperProvider>
+    <ThemeProvider>
+      <PaperProvider>
+        <AuthProvider>
+          <NavigationContainer>
+            <AppContent />
+          </NavigationContainer>
+        </AuthProvider>
+      </PaperProvider>
+    </ThemeProvider>
   );
 }
