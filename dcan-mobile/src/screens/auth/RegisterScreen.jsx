@@ -80,12 +80,13 @@ export default function RegisterScreen() {
     setErrors({});
 
     try {
-      const response = await axios.post(`${API_URL}/register-client`, {
+      const response = await axios.post(`${API_URL}/register`, {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
         password_confirmation: passwordConfirmation,
         clinic_id: selectedClinic.id,
+        role: "client",
       });
 
       alert("¡Registro exitoso! Bienvenido a D’CAN 🐾");
