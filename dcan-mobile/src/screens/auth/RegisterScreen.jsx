@@ -32,7 +32,7 @@ export default function RegisterScreen() {
 
   const [errors, setErrors] = useState({});
 
-  const API_URL = "http://192.168.100.55:8000/api";
+  const API_URL = "http://192.168.18.10:8000/api";
 
   const validateForm = () => {
     const newErrors = {};
