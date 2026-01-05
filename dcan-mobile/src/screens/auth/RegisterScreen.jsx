@@ -91,24 +91,21 @@ export default function RegisterScreen() {
     setErrors({});
 
     try {
-      await axios.post(`${API_URL}/register`, {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-        password_confirmation: passwordConfirmation,
-        clinic_id: selectedClinic.id,
-        role: "client",
-      });
+  await axios.post(`${API_URL}/register-client`, {
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    password,
+    password_confirmation: passwordConfirmation,
+    clinic_id: selectedClinic.id,
+  });
 
-      // ✅ éxito: limpiar + aviso + ir a Login
-      resetForm();
-      setSuccessMsg("¡Registro exitoso! Ahora inicia sesión ✅");
+  resetForm();
+  setSuccessMsg("¡Registro exitoso! Ahora inicia sesión ✅");
 
-      // Pequeña pausa para que el usuario lea el mensaje
-      setTimeout(() => {
-        navigation.navigate("Login");
-      }, 700);
-    } catch (err) {
+  setTimeout(() => {
+    navigation.navigate("Login");
+  }, 700);
+} catch (err) {
       // ✅ Mostrar error real del backend
       const status = err.response?.status;
       const data = err.response?.data;
