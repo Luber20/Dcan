@@ -16,4 +16,12 @@ Route::post('/register-client', [RegisterController::class, 'registerClient']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+
+Route::middleware(['auth:sanctum', 'role:super_admin'])->group(function () {
+    Route::get('/admin/clinics', [ClinicController::class, 'index']);
+    Route::post('/admin/clinics', [ClinicController::class, 'store']);
+    Route::put('/admin/clinics/{clinic}', [ClinicController::class, 'update']);
+    Route::patch('/admin/clinics/{clinic}/toggle', [ClinicController::class, 'toggle']);
+});
+
 });

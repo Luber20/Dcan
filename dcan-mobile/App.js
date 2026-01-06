@@ -5,23 +5,27 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { PaperProvider } from "react-native-paper";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
-import { ThemeProvider } from "./src/context/ThemeContext";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import RegisterScreen from "./src/screens/auth/RegisterScreen";
 import ClientTabs from "./src/navigation/ClientTabs";
 import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 
-
-
 const Stack = createNativeStackNavigator();
 
 function AppContent() {
-  const { user, loading, loadToken } = useAuth(); // ✅ aquí faltaba user
+  const { user, loading, loadToken } = useAuth();
+  const { setUserKey } = useTheme(); // ✅ para persistir el tema por usuario
 
   useEffect(() => {
     loadToken();
   }, []);
+
+  // ✅ cada vez que cambie el usuario, el ThemeContext carga su preferencia
+  useEffect(() => {
+    setUserKey(user?.email || "guest");
+  }, [user]);
 
   if (loading) {
     return (
