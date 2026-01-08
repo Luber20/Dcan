@@ -17,10 +17,12 @@ import {
   Portal,
   List,
 } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";  // ← Para respetar notch y barra inferior
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 
+// ⚠️ NOTA: Estos IDs (1, 2, 3...) deben coincidir con los de tu base de datos Laravel
+// Si haces 'php artisan migrate:refresh --seed', coincidirán perfectamente.
 const CLINICS = [
   { id: "1", name: "Austrovet Cuenca", province: "Azuay", canton: "Cuenca", address: "Huayna-Cápac y Av. Loja", phone: "07-2246815" },
   { id: "2", name: "Instavet Guayaquil", province: "Guayas", canton: "Guayaquil", address: "Av. Francisco de Orellana", phone: "04-6002132" },
@@ -68,9 +70,11 @@ export default function ClinicsDirectory() {
   }, [search, selectedProvince, selectedCanton]);
 
   const handleSelectClinic = (clinic) => {
+    // Si no hay usuario logueado, vamos al Login pasando la clínica elegida
     if (!user) {
       navigation.navigate("Login", { selectedClinic: clinic });
     } else {
+      // Si ya está logueado, aquí podrías llevarlo a "Agendar Cita" directamente
       alert(`Clínica seleccionada: ${clinic.name}`);
     }
   };

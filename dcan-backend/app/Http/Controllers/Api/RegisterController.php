@@ -18,7 +18,7 @@ class RegisterController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6|confirmed',
-            'clinic_id' => 'required|exists:clinics,id',  // La clínica debe existir
+            'clinic_id' => 'required|exists:clinics,id',
         ]);
 
         if ($validator->fails()) {
@@ -35,7 +35,7 @@ class RegisterController extends Controller
             'clinic_id' => $request->clinic_id,
         ]);
 
-        // Asignamos el role "client"
+        // ✅ CRÍTICO: Asignar el rol para que funcione el menú dinámico
         $user->assignRole('client');
 
         $token = $user->createToken('auth_token')->plainTextToken;

@@ -17,6 +17,7 @@ import {
 } from "react-native-paper";
 import axios from "axios";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { API_URL } from "../../config/api";
 
 export default function RegisterScreen() {
   const navigation = useNavigation();
@@ -32,7 +33,6 @@ export default function RegisterScreen() {
   const [errors, setErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState("");
 
-  const API_URL = "http://192.168.18.10:8000/api";
 
   const resetForm = () => {
     setName("");
