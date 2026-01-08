@@ -6,39 +6,24 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles;
+use Spatie\Permission\Traits\HasRoles; // ✅ Vital para el menú dinámico
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'clinic_id',  // ← Agregamos esto para vincular a la clínica
+        'clinic_id',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -47,9 +32,15 @@ class User extends Authenticatable
         ];
     }
 
-    // Relación con la clínica (opcional, pero útil)
+    // Relación con la clínica
     public function clinic()
     {
         return $this->belongsTo(Clinic::class);
+    }
+
+    // Relación con mascotas
+    public function pets()
+    {
+        return $this->hasMany(Pet::class);
     }
 }

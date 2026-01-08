@@ -1,77 +1,80 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
+import { API_URL } from "../config/api";
 
 const AuthContext = createContext();
+
 export const useAuth = () => useContext(AuthContext);
+
+const TOKEN_KEY = "authToken"; 
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = "http://192.168.18.10:8000/api";
-
   useEffect(() => {
     loadToken();
   }, []);
 
-  const clearSession = async () => {
-    await SecureStore.deleteItemAsync("authToken");
-    delete axios.defaults.headers.common["Authorization"];
-    setUser(null);
-  };
-
+  // Función para cargar el token al abrir la App
   const loadToken = async () => {
+    setLoading(true);
     try {
-      const token = await SecureStore.getItemAsync("authToken");
+      // 1. Buscamos en la memoria del celular
+      const token = await SecureStore.getItemAsync(TOKEN_KEY);
+      
       if (token) {
+        // 2. Configuramos Axios
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        
+        // 3. Verificamos con el servidor
         const response = await axios.get(`${API_URL}/me`);
-        setUser(response.data);
+        
+        if (response.data && response.data.email) {
+            setUser(response.data); 
+        } else {
+            setUser(null);
+        }
+      } else {
+        setUser(null);
       }
     } catch (error) {
-      // ✅ Si /me falla, el token probablemente es inválido/expiró → limpiamos sesión
-      console.log("No hay token válido o error en /me:", error.message);
-      await clearSession();
+      // Si el token expiró (401), limpiamos la sesión
+      if (error.response?.status === 401) {
+        await clearSession();
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const clearSession = async () => {
+    try {
+      await SecureStore.deleteItemAsync(TOKEN_KEY);
+      delete axios.defaults.headers.common["Authorization"];
+      setUser(null);
+    } catch (error) {
+      // Error silencioso al limpiar
     }
   };
 
   const login = async (email, password) => {
     try {
       const response = await axios.post(`${API_URL}/login`, { email, password });
-
       const { token, user, clinic_id } = response.data;
 
-      await SecureStore.setItemAsync("authToken", token);
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+      
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       setUser({ ...user, clinic_id });
 
       return { success: true };
+
     } catch (error) {
-      // ✅ 1) Si NO hay response => es red/servidor/timeout, NO credenciales
-      if (!error.response) {
-        console.log("Error de red en login:", error.message);
-        return {
-          success: false,
-          message: "Error de red: no se puede conectar al servidor. Intenta nuevamente.",
-        };
-      }
-
-      // ✅ 2) Si es 401 => credenciales incorrectas (y limpiamos token por seguridad)
-      if (error.response.status === 401) {
-        await clearSession();
-        return { success: false, message: "Credenciales incorrectas." };
-      }
-
-      // ✅ 3) Otros errores (422 validación, 500 server, etc.)
-      const message =
-        error.response?.data?.message ||
-        "No se pudo iniciar sesión. Intenta nuevamente.";
-
-      console.log("Error en login:", error.response?.status, error.response?.data);
-      return { success: false, message };
+      if (!error.response) return { success: false, message: "Error de conexión." };
+      if (error.response.status === 401) return { success: false, message: "Credenciales incorrectas." };
+      return { success: false, message: "Error al iniciar sesión." };
     }
   };
 
@@ -79,7 +82,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await axios.post(`${API_URL}/logout`);
     } catch (error) {
-      console.log("Error en logout:", error.message);
+      // Ignoramos error de red al salir
     }
     await clearSession();
   };

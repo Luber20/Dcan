@@ -17,7 +17,7 @@ import {
 } from "react-native-paper";
 import axios from "axios";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { useAuth } from "../../context/AuthContext";
+import { API_URL } from "../../config/api";
 
 export default function RegisterScreen() {
   const navigation = useNavigation();
@@ -31,8 +31,16 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
 
   const [errors, setErrors] = useState({});
+  const [successMsg, setSuccessMsg] = useState("");
 
-  const API_URL = "http://192.168.18.10:8000/api";
+
+  const resetForm = () => {
+    setName("");
+    setEmail("");
+    setPassword("");
+    setPasswordConfirmation("");
+    setErrors({});
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -74,31 +82,49 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
+    if (loading) return; // evita doble click
+    setSuccessMsg("");
+
     if (!validateForm()) return;
 
     setLoading(true);
     setErrors({});
 
     try {
-      const response = await axios.post(`${API_URL}/register`, {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-        password_confirmation: passwordConfirmation,
-        clinic_id: selectedClinic.id,
-        role: "client",
-      });
+  await axios.post(`${API_URL}/register-client`, {
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    password,
+    password_confirmation: passwordConfirmation,
+    clinic_id: selectedClinic.id,
+  });
 
-      alert("¡Registro exitoso! Bienvenido a D’CAN 🐾");
-      // No navegamos manualmente → App.js lo hace automático
-    } catch (err) {
-      if (err.response?.status === 422) {
-        const backendErrors = err.response.data.errors || {};
+  resetForm();
+  setSuccessMsg("¡Registro exitoso! Ahora inicia sesión ✅");
+
+  setTimeout(() => {
+    navigation.navigate("Login");
+  }, 700);
+} catch (err) {
+      // ✅ Mostrar error real del backend
+      const status = err.response?.status;
+      const data = err.response?.data;
+
+      console.log("REGISTER ERROR:", status, data || err.message);
+
+      if (status === 422) {
+        // Laravel suele mandar errors: { email: [...], password: [...], ... }
         setErrors({
-          email: backendErrors.email?.[0] || "",
+          ...data?.errors,
+          general: "Revisa los campos marcados.",
         });
+      } else if (status === 500) {
+        setErrors({ general: "Error del servidor (500). Revisa Laravel/DB." });
       } else {
-        setErrors({ general: "Error de conexión. Intenta de nuevo." });
+        setErrors({
+          general:
+            "No se pudo conectar al servidor. Verifica que el backend esté encendido y en la misma red.",
+        });
       }
     } finally {
       setLoading(false);
@@ -106,16 +132,33 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+    >
       <ScrollView contentContainerStyle={styles.inner}>
-        {/* Logo más pequeño y más abajo */}
-        <Image source={require("../../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
+        <Image
+          source={require("../../../assets/logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+
         <Title style={styles.title}>Crear Cuenta</Title>
         <Paragraph style={styles.subtitle}>
           Clínica seleccionada: {selectedClinic ? selectedClinic.name : "Ninguna"}
         </Paragraph>
 
-        {errors.clinic && <HelperText type="error" visible={true}>{errors.clinic}</HelperText>}
+        {!!errors.clinic && (
+          <HelperText type="error" visible={true}>
+            {errors.clinic}
+          </HelperText>
+        )}
+
+        {!!successMsg && (
+          <HelperText type="info" visible={true}>
+            {successMsg}
+          </HelperText>
+        )}
 
         <Card style={styles.card}>
           <Card.Content>
@@ -128,7 +171,9 @@ export default function RegisterScreen() {
               error={!!errors.name}
               left={<TextInput.Icon icon="account" />}
             />
-            <HelperText type="error" visible={!!errors.name}>{errors.name}</HelperText>
+            <HelperText type="error" visible={!!errors.name}>
+              {Array.isArray(errors.name) ? errors.name[0] : errors.name}
+            </HelperText>
 
             <TextInput
               label="Email"
@@ -137,10 +182,13 @@ export default function RegisterScreen() {
               mode="outlined"
               style={styles.input}
               keyboardType="email-address"
+              autoCapitalize="none"
               error={!!errors.email}
               left={<TextInput.Icon icon="email-outline" />}
             />
-            <HelperText type="error" visible={!!errors.email}>{errors.email}</HelperText>
+            <HelperText type="error" visible={!!errors.email}>
+              {Array.isArray(errors.email) ? errors.email[0] : errors.email}
+            </HelperText>
 
             <TextInput
               label="Contraseña"
@@ -152,7 +200,9 @@ export default function RegisterScreen() {
               error={!!errors.password}
               left={<TextInput.Icon icon="lock-outline" />}
             />
-            <HelperText type="error" visible={!!errors.password}>{errors.password}</HelperText>
+            <HelperText type="error" visible={!!errors.password}>
+              {Array.isArray(errors.password) ? errors.password[0] : errors.password}
+            </HelperText>
 
             <TextInput
               label="Confirmar contraseña"
@@ -161,14 +211,22 @@ export default function RegisterScreen() {
               secureTextEntry
               mode="outlined"
               style={styles.input}
-              error={!!errors.passwordConfirmation}
+              error={!!errors.password_confirmation || !!errors.passwordConfirmation}
               left={<TextInput.Icon icon="lock-check-outline" />}
             />
-            <HelperText type="error" visible={!!errors.passwordConfirmation}>
-              {errors.passwordConfirmation}
+            <HelperText type="error" visible={true}>
+              {errors.passwordConfirmation ||
+                (Array.isArray(errors.password_confirmation)
+                  ? errors.password_confirmation[0]
+                  : errors.password_confirmation) ||
+                ""}
             </HelperText>
 
-            {errors.general && <HelperText type="error" visible={true}>{errors.general}</HelperText>}
+            {!!errors.general && (
+              <HelperText type="error" visible={true}>
+                {errors.general}
+              </HelperText>
+            )}
 
             <Button
               mode="contained"
@@ -184,8 +242,9 @@ export default function RegisterScreen() {
 
             <Button
               mode="text"
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.navigate("Login")}
               style={styles.link}
+              disabled={loading}
             >
               ¿Ya tienes cuenta? Iniciar sesión
             </Button>
@@ -198,8 +257,8 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#E8F5E8" },
-  inner: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 20 },  // Menos padding arriba/abajo
-  logo: { width: 100, height: 100, alignSelf: "center", marginBottom: 10 },  // Logo más pequeño y más abajo
+  inner: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 20 },
+  logo: { width: 100, height: 100, alignSelf: "center", marginBottom: 10 },
   title: { fontSize: 32, fontWeight: "bold", textAlign: "center", color: "#2E8B57" },
   subtitle: { fontSize: 15, textAlign: "center", color: "#666", marginBottom: 15 },
   card: { borderRadius: 20, elevation: 8, paddingBottom: 10 },

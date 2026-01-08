@@ -11,13 +11,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Primero ejecutamos el seeder de roles
-        $this->call(RoleSeeder::class);
-
-        // Puedes dejar o comentar lo del usuario de prueba
-        // User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        // Llamamos a todos los seeders en ORDEN ESTRICTO
+        $this->call([
+            RoleSeeder::class,   // 1. Roles (Primero, para que existan)
+            ClinicSeeder::class, // 2. Clínicas
+            MenuSeeder::class,   // 3. Menús (Busca roles creados en el paso 1)
+        ]);
     }
 }

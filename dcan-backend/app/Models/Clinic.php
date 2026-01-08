@@ -10,8 +10,11 @@ class Clinic extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
-        'address',
-        'phone',
+        'name', 
+        'province', // 👈 Nuevo
+        'canton',   // 👈 Nuevo
+        'address', 
+        'phone', 
+        'is_active'
     ];
 }
