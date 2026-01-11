@@ -13,7 +13,7 @@ import RegisterScreen from "./src/screens/auth/RegisterScreen";
 import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 
 // Navegadores
-import ClientTabs from "./src/navigation/ClientTabs";
+import AdminTabs from "./src/navigation/AdminTabs";
 
 const Stack = createNativeStackNavigator();
 
@@ -87,7 +87,7 @@ function AppContent() {
           
           {/* Admin Clínica */}
           {user.roles?.[0]?.name === "clinic_admin" && (
-             <Stack.Screen name="AdminDashboard" component={AdminPlaceholder} />
+             <Stack.Screen name="AdminDashboard" component={AdminTabs} />
           )}
           
           {/* Veterinario */}
