@@ -43,6 +43,8 @@ function uniqueSorted(arr) {
   return Array.from(new Set(arr)).sort((a, b) => a.localeCompare(b));
 }
 
+
+
 export default function Inicio({ navigation }) { // ✅ recibe navigation
   const { user } = useAuth(); // ✅ obtiene user del contexto
 

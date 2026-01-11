@@ -8,10 +8,16 @@ export default function LoginScreen({ navigation }) {
   const route = useRoute();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
+  // 👇 ESTADO NUEVO: Para controlar si se ve la contraseña
+  const [showPassword, setShowPassword] = useState(false);
+  
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  // ✅ FUNCIÓN BIEN CERRADA
+  // Recuperamos la clínica si viene del directorio
+  const selectedClinic = route.params?.selectedClinic || null;
+
   const handleLogin = async () => {
     if (!email || !password) {
       alert("Por favor ingresa email y contraseña");
@@ -44,6 +50,12 @@ export default function LoginScreen({ navigation }) {
           Veterinaria de confianza
         </Paragraph>
 
+        {selectedClinic && (
+            <Paragraph style={{color: '#2E8B57', fontWeight: 'bold', marginBottom: 10}}>
+                Clínica: {selectedClinic.name}
+            </Paragraph>
+        )}
+
         <Card style={styles.card}>
           <Card.Content>
             <TextInput
@@ -54,17 +66,27 @@ export default function LoginScreen({ navigation }) {
               style={styles.input}
               theme={{ roundness: 15 }}
               left={<TextInput.Icon icon="email-outline" />}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
 
             <TextInput
               label="Contraseña"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
+              // 👇 AQUÍ ESTÁ LA MAGIA DEL OJO
+              secureTextEntry={!showPassword} 
               mode="outlined"
               style={styles.input}
               theme={{ roundness: 15 }}
               left={<TextInput.Icon icon="lock-outline" />}
+              // Icono dinámico: si showPassword es true, muestra 'eye-off', si no 'eye'
+              right={
+                <TextInput.Icon 
+                    icon={showPassword ? "eye-off" : "eye"} 
+                    onPress={() => setShowPassword(!showPassword)} 
+                />
+              }
             />
 
             <Button
@@ -83,7 +105,7 @@ export default function LoginScreen({ navigation }) {
               mode="text"
               onPress={() =>
                 navigation.navigate("Register", {
-                  selectedClinic: route.params?.selectedClinic,
+                  selectedClinic: selectedClinic, 
                 })
               }
               style={styles.link}
@@ -115,7 +137,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 18,
     color: "#666",
-    marginBottom: 40,
+    marginBottom: 20, 
     textAlign: "center",
   },
   card: {
@@ -127,4 +149,5 @@ const styles = StyleSheet.create({
   input: { marginBottom: 16, backgroundColor: "#fff" },
   button: { marginTop: 20, backgroundColor: "#2E8B57" },
   buttonContent: { height: 55 },
+  link: { marginTop: 15 }
 });
