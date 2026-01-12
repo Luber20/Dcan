@@ -1,77 +1,102 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useTheme } from "../context/ThemeContext";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import * as Animatable from "react-native-animatable";
+import HeaderRightLogout from "../components/HeaderRightLogout";
 
-// Screens
-import AdminHomeScreen from "../screens/admin/AdminHomeScreen";
-import ClinicsScreen from "../screens/admin/ClinicsScreen";
-import UsersScreen from "../screens/admin/UsersScreen";
-import ProfileScreenSuperAdmin from "../screens/admin/ProfileScreenSuperAdmin"; // ✅
+// Import screens
+import ClinicManagement from "../screens/admin/ClinicManagement";
+import StaffManagement from "../screens/admin/StaffManagement";
+import ClientManagement from "../screens/admin/ClientManagement";
+import AppointmentManagement from "../screens/admin/AppointmentManagement";
+import ClinicsList from "../screens/admin/ClinicsList";
+import ClinicEdit from "../screens/admin/ClinicEdit";
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
+
+// Stack para Clínica
+function ClinicStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="ClinicHome"
+        component={ClinicManagement}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ClinicsList"
+        component={ClinicsList}
+        options={{ title: "Todas las Clínicas" }}
+      />
+      <Stack.Screen
+        name="ClinicEdit"
+        component={ClinicEdit}
+        options={{ title: "Editar Clínica" }}
+      />
+    </Stack.Navigator>
+  );
+}
 
 export default function AdminTabs() {
-  const { theme } = useTheme();
-
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: "#999",
-        tabBarStyle: {
-          backgroundColor: theme.colors.background,
-          borderTopColor: "#eee",
-          height: 62,
-          paddingBottom: 6,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-        },
+        headerRight: () => <HeaderRightLogout />,
+        headerStyle: { backgroundColor: "#2E8B57" },
+        headerTintColor: "#fff",
+        tabBarActiveTintColor: "#2E8B57",
       }}
     >
       <Tab.Screen
-        name="AdminHome"
-        component={AdminHomeScreen}
+        name="Clinic"
+        component={ClinicStack}
         options={{
-          title: "Inicio",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="view-dashboard" color={color} size={size} />
+          title: "Clínica",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
+              <Ionicons name="paw" size={size} color={color} />
+            </Animatable.View>
           ),
         }}
       />
 
       <Tab.Screen
-        name="Clinics"
-        component={ClinicsScreen}
+        name="Staff"
+        component={StaffManagement}
         options={{
-          title: "Clínicas",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="domain" color={color} size={size} />
+          title: "Personal",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
+              <Ionicons name="paw" size={size} color={color} />
+            </Animatable.View>
           ),
         }}
       />
 
       <Tab.Screen
-        name="Users"
-        component={UsersScreen}
+        name="Clients"
+        component={ClientManagement}
         options={{
-          title: "Usuarios",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account-multiple" color={color} size={size} />
+          title: "Clientes",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
+              <Ionicons name="paw" size={size} color={color} />
+            </Animatable.View>
           ),
         }}
       />
 
-      {/* ✅ TAB PERFIL */}
       <Tab.Screen
-        name="ProfileSuperAdmin"
-        component={ProfileScreenSuperAdmin}
+        name="Appointments"
+        component={AppointmentManagement}
         options={{
-          title: "Perfil",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account-circle" color={color} size={size} />
+          title: "Citas",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
+              <Ionicons name="paw" size={size} color={color} />
+            </Animatable.View>
           ),
         }}
       />

@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,   // 1. Roles (Primero, para que existan)
             ClinicSeeder::class, // 2. Clínicas
             MenuSeeder::class,   // 3. Menús (Busca roles creados en el paso 1)
+            UserSeeder::class,   // 4. Usuarios de prueba
         ]);
     }
 }

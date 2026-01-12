@@ -27,6 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user()->load('roles');
     });
 
+    // Registro de veterinarios (solo clinic_admin)
+    Route::post('/register-veterinarian', [RegisterController::class, 'registerVeterinarian']);
+
     // Menú y Mascotas
     Route::get('/my-menu', [MenuController::class, 'index']);
     Route::apiResource('pets', PetController::class);
@@ -35,7 +38,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/appointments/next', [AppointmentController::class, 'nextAppointment']);
     Route::apiResource('appointments', AppointmentController::class);
 
-    // 👨‍⚕️ RUTA PARA EL SPINNER DE VETERINARIOS (Corregida)
+    // Gestión de clínica para admin
+    Route::get('/clinic-clients', [ClinicController::class, 'getClients']);
+    Route::post('/clinic-clients', [ClinicController::class, 'createClient']);
+    Route::delete('/clinic-clients/{user}', [ClinicController::class, 'deleteClient']);
+    Route::patch('/clinic-clients/{user}/toggle', [ClinicController::class, 'toggleClient']);
+    Route::get('/clinic-veterinarians', [ClinicController::class, 'getVeterinarians']);
+    Route::put('/clinic-veterinarians/{user}', [ClinicController::class, 'updateVeterinarian']);
+    Route::delete('/clinic-veterinarians/{user}', [ClinicController::class, 'deleteVeterinarian']);
+    Route::get('/clinic-appointments', [AppointmentController::class, 'getClinicAppointments']);
     Route::get('/veterinarians', function (Request $request) {
         $clinicId = $request->user()->clinic_id;
 

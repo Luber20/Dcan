@@ -48,4 +48,39 @@ class RegisterController extends Controller
             'token_type' => 'Bearer',
         ], 201);
     }
+
+    public function registerVeterinarian(Request $request)
+    {
+        // Verificar que el usuario sea clinic_admin
+        if (!$request->user()->hasRole('clinic_admin')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Errores de validación',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'clinic_id' => $request->user()->clinic_id,
+        ]);
+
+        $user->assignRole('veterinarian');
+
+        return response()->json([
+            'message' => 'Veterinario registrado exitosamente',
+            'user' => $user->load('roles'),
+        ], 201);
+    }
 }

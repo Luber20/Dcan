@@ -14,7 +14,8 @@ import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 
 // Navegadores
 import ClientTabs from "./src/navigation/ClientTabs";
-import AdminTabs from "./src/navigation/AdminTabs"; // ✅ IMPORTANTE
+import AdminTabs from "./src/navigation/AdminTabs"; // (main) admin clínica u otros flujos existentes
+import SuperAdminTabs from "./src/navigation/SuperAdminTabs"; // ✅ tu nuevo navigator
 
 const Stack = createNativeStackNavigator();
 
@@ -23,12 +24,12 @@ const AdminPlaceholder = () => {
   const { logout } = useAuth();
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
-      <Text style={{ fontSize: 18, marginBottom: 20 }}>Panel Administrativo (En construcción) 🏗️</Text>
+      <Text style={{ fontSize: 18, marginBottom: 20 }}>Panel (Rol no reconocido) 🧩</Text>
       <Text style={{ textAlign: "center", color: "#666", marginBottom: 20 }}>
-        Estás viendo esto porque tu usuario es Admin/SuperAdmin o no tiene rol reconocido.
+        Tu usuario inició sesión, pero el rol no está configurado para mostrar una interfaz.
       </Text>
       <Button mode="contained" onPress={logout} buttonColor="red">
-        Cerrar Sesión y Salir
+        Cerrar Sesión
       </Button>
     </View>
   );
@@ -45,7 +46,6 @@ const VetPlaceholder = () => {
     </View>
   );
 };
-// --------------------
 
 function AppContent() {
   const { user, loading, loadToken } = useAuth();
@@ -59,14 +59,10 @@ function AppContent() {
     setUserKey(user?.email || "guest");
   }, [user]);
 
-  // ✅ Resolver rol de forma robusta
+  // ✅ Resolver rol de forma robusta (compat: user.role o Spatie roles[0].name)
   const role = useMemo(() => {
-    // si normalizaste role en AuthContext
     if (user?.role) return user.role;
-
-    // si viene de Spatie
     if (user?.roles?.length) return user.roles[0]?.name;
-
     return null;
   }, [user]);
 
@@ -88,31 +84,36 @@ function AppContent() {
           <Stack.Screen name="Register" component={RegisterScreen} />
         </>
       ) : (
-        // 🔐 FLUJO PRIVADO: SIEMPRE 1 SCREEN (para no quedar vacío)
+        // 🔐 FLUJO PRIVADO (SIEMPRE al menos 1 SCREEN)
         <>
-          {/** ✅ SUPERADMIN / ADMIN */}
-          {(role === "superadmin" || role === "admin" || role === "super_admin" || role === "clinic_admin") && (
+          {/* ✅ SUPER ADMIN (tu UI nueva) */}
+          {(role === "superadmin" || role === "super_admin") && (
+            <Stack.Screen name="SuperAdminDashboard" component={SuperAdminTabs} />
+          )}
+
+          {/* ✅ ADMIN DE CLÍNICA (conserva lo que ya está en main) */}
+          {(role === "clinic_admin" || role === "admin") && (
             <Stack.Screen name="AdminDashboard" component={AdminTabs} />
           )}
 
-          {/** ✅ VETERINARIO */}
+          {/* ✅ VETERINARIO */}
           {(role === "veterinario" || role === "veterinarian") && (
             <Stack.Screen name="VetDashboard" component={VetPlaceholder} />
           )}
 
-          {/** ✅ CLIENTE */}
+          {/* ✅ CLIENTE */}
           {(role === "cliente" || role === "client") && (
             <Stack.Screen name="ClientDashboard" component={ClientTabs} />
           )}
 
-          {/** ✅ FALLBACK: si el rol no coincide con nada */}
+          {/* ✅ FALLBACK (si el rol no coincide con nada) */}
           {!role && <Stack.Screen name="UnknownRole" component={AdminPlaceholder} />}
 
           {role &&
             role !== "superadmin" &&
-            role !== "admin" &&
             role !== "super_admin" &&
             role !== "clinic_admin" &&
+            role !== "admin" &&
             role !== "veterinario" &&
             role !== "veterinarian" &&
             role !== "cliente" &&
