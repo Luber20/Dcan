@@ -2,7 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import * as Animatable from 'react-native-animatable';
+import * as Animatable from "react-native-animatable";
 import HeaderRightLogout from "../components/HeaderRightLogout";
 
 // Import screens
@@ -20,9 +20,21 @@ const Stack = createNativeStackNavigator();
 function ClinicStack() {
   return (
     <Stack.Navigator>
-      <Stack.Screen name="ClinicHome" component={ClinicManagement} options={{ headerShown: false }} />
-      <Stack.Screen name="ClinicsList" component={ClinicsList} options={{ title: "Todas las Clínicas" }} />
-      <Stack.Screen name="ClinicEdit" component={ClinicEdit} options={{ title: "Editar Clínica" }} />
+      <Stack.Screen
+        name="ClinicHome"
+        component={ClinicManagement}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ClinicsList"
+        component={ClinicsList}
+        options={{ title: "Todas las Clínicas" }}
+      />
+      <Stack.Screen
+        name="ClinicEdit"
+        component={ClinicEdit}
+        options={{ title: "Editar Clínica" }}
+      />
     </Stack.Navigator>
   );
 }
@@ -49,6 +61,7 @@ export default function AdminTabs() {
           ),
         }}
       />
+
       <Tab.Screen
         name="Staff"
         component={StaffManagement}
@@ -61,6 +74,7 @@ export default function AdminTabs() {
           ),
         }}
       />
+
       <Tab.Screen
         name="Clients"
         component={ClientManagement}
@@ -73,6 +87,7 @@ export default function AdminTabs() {
           ),
         }}
       />
+
       <Tab.Screen
         name="Appointments"
         component={AppointmentManagement}
