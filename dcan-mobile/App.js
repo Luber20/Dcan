@@ -1,8 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { View, Text, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { PaperProvider, Button } from "react-native-paper"; 
+import { PaperProvider, Button } from "react-native-paper";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
@@ -14,20 +14,20 @@ import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 
 // Navegadores
 import ClientTabs from "./src/navigation/ClientTabs";
-import VeterinarianTabs from "./src/navigation/VetTabs";
+
 const Stack = createNativeStackNavigator();
 
 // --- PLACEHOLDERS ---
 const AdminPlaceholder = () => {
   const { logout } = useAuth();
   return (
-    <View style={{flex:1, justifyContent:'center', alignItems:'center', padding: 20}}>
-      <Text style={{fontSize: 18, marginBottom: 20}}>Panel Administrativo (En construcción) 🏗️</Text>
-      <Text style={{textAlign: 'center', color: '#666', marginBottom: 20}}>
-        Estás viendo esto porque tu usuario no tiene rol de Cliente o es Admin.
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+      <Text style={{ fontSize: 18, marginBottom: 20 }}>Panel (Rol no reconocido) 🧩</Text>
+      <Text style={{ textAlign: "center", color: "#666", marginBottom: 20 }}>
+        Tu usuario inició sesión, pero el rol no está configurado para mostrar una interfaz.
       </Text>
       <Button mode="contained" onPress={logout} buttonColor="red">
-        Cerrar Sesión y Salir
+        Cerrar Sesión
       </Button>
     </View>
   );
@@ -36,28 +36,32 @@ const AdminPlaceholder = () => {
 const VetPlaceholder = () => {
   const { logout } = useAuth();
   return (
-    <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-      <Text style={{fontSize: 18, marginBottom: 20}}>Agenda Veterinaria (En construcción) 🩺</Text>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <Text style={{ fontSize: 18, marginBottom: 20 }}>Agenda Veterinaria (En construcción) 🩺</Text>
       <Button mode="contained" onPress={logout} buttonColor="red">
         Cerrar Sesión
       </Button>
     </View>
   );
 };
-// --------------------
 
 function AppContent() {
   const { user, loading, loadToken } = useAuth();
   const { setUserKey } = useTheme();
 
-  // Al iniciar AppContent, carga el token
   useEffect(() => {
     loadToken();
   }, []);
 
-  // Sincroniza el tema
   useEffect(() => {
     setUserKey(user?.email || "guest");
+  }, [user]);
+
+  // ✅ Resolver rol de forma robusta (compat: user.role o Spatie roles[0].name)
+  const role = useMemo(() => {
+    if (user?.role) return user.role;
+    if (user?.roles?.length) return user.roles[0]?.name;
+    return null;
   }, [user]);
 
   if (loading) {
@@ -78,23 +82,27 @@ function AppContent() {
           <Stack.Screen name="Register" component={RegisterScreen} />
         </>
       ) : (
-        // 🔐 FLUJO PRIVADO (SEPARACIÓN POR ROLES)
+        // 🔐 FLUJO PRIVADO (SIEMPRE al menos 1 SCREEN)
         <>
-          {/* Cliente */}
-          {user.roles?.[0]?.name === "client" && (
-            <Stack.Screen name="ClientDashboard" component={ClientTabs} />
+          {/* ✅ SUPER ADMIN (tu UI nueva) */}
+          {(role === "superadmin" || role === "super_admin") && (
+            <Stack.Screen name="SuperAdminDashboard" component={SuperAdminTabs} />
           )}
-          
-          {/* Admin Clínica */}
-          {user.roles?.[0]?.name === "clinic_admin" && (
-             <Stack.Screen name="AdminDashboard" component={AdminPlaceholder} />
+
+          {/* ✅ ADMIN DE CLÍNICA (conserva lo que ya está en main) */}
+          {(role === "clinic_admin" || role === "admin") && (
+            <Stack.Screen name="AdminDashboard" component={AdminTabs} />
           )}
-          
           
           {/* Veterinario */}
-{user.roles?.[0]?.name === "veterinarian" && (
-    <Stack.Screen name="VetDashboard" component={VeterinarianTabs} />
-)}
+          {user.roles?.[0]?.name === "veterinarian" && (
+             <Stack.Screen name="VetDashboard" component={VetPlaceholder} />
+          )}
+          
+          {/* Otros (Super Admin o sin rol) */}
+          {(!user.roles?.[0] || user.roles[0].name === "super_admin") && (
+             <Stack.Screen name="SuperAdmin" component={AdminPlaceholder} />
+          )}
         </>
       )}
     </Stack.Navigator>

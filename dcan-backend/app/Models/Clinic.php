@@ -14,7 +14,8 @@ class Clinic extends Model
         'province', // 👈 Nuevo
         'canton',   // 👈 Nuevo
         'address', 
-        'phone', 
+        'phone',
+        'hours',
         'is_active'
     ];
 }
