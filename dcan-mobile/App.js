@@ -14,7 +14,7 @@ import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 
 // Navegadores
 import ClientTabs from "./src/navigation/ClientTabs";
-
+import VeterinarianTabs from "./src/navigation/VetTabs";
 const Stack = createNativeStackNavigator();
 
 // --- PLACEHOLDERS ---
@@ -90,15 +90,11 @@ function AppContent() {
              <Stack.Screen name="AdminDashboard" component={AdminPlaceholder} />
           )}
           
-          {/* Veterinario */}
-          {user.roles?.[0]?.name === "veterinarian" && (
-             <Stack.Screen name="VetDashboard" component={VetPlaceholder} />
-          )}
           
-          {/* Otros (Super Admin o sin rol) */}
-          {(!user.roles?.[0] || user.roles[0].name === "super_admin") && (
-             <Stack.Screen name="SuperAdmin" component={AdminPlaceholder} />
-          )}
+          {/* Veterinario */}
+{user.roles?.[0]?.name === "veterinarian" && (
+    <Stack.Screen name="VetDashboard" component={VeterinarianTabs} />
+)}
         </>
       )}
     </Stack.Navigator>
