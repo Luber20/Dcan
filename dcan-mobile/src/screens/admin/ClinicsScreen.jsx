@@ -155,8 +155,11 @@ export default function ClinicsScreen() {
       resetForm();
       await fetchClinics();
     } catch (e) {
-      setError("Error guardando clínica. Revisa validaciones del servidor.");
-    }
+  console.log("SAVE CLINIC ERROR STATUS:", e?.response?.status);
+  console.log("SAVE CLINIC ERROR DATA:", e?.response?.data);
+  setError(e?.response?.data?.message || "Error guardando clínica.");
+}
+
   };
 
   const toggleClinic = async (clinic) => {
