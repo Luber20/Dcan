@@ -14,6 +14,8 @@ import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
 
 // Navegadores
 import ClientTabs from "./src/navigation/ClientTabs";
+import AdminTabs from "./src/navigation/AdminTabs";
+import SuperAdminTabs from "./src/navigation/SuperAdminTabs";
 
 const Stack = createNativeStackNavigator();
 
@@ -44,6 +46,7 @@ const VetPlaceholder = () => {
     </View>
   );
 };
+// --------------------
 
 function AppContent() {
   const { user, loading, loadToken } = useAuth();
@@ -57,7 +60,6 @@ function AppContent() {
     setUserKey(user?.email || "guest");
   }, [user]);
 
-  // ✅ Resolver rol de forma robusta (compat: user.role o Spatie roles[0].name)
   const role = useMemo(() => {
     if (user?.role) return user.role;
     if (user?.roles?.length) return user.roles[0]?.name;
@@ -75,34 +77,39 @@ function AppContent() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!user ? (
-        // 🌍 FLUJO PÚBLICO
         <>
           <Stack.Screen name="ClinicsDirectory" component={ClinicsDirectory} />
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
         </>
       ) : (
-        // 🔐 FLUJO PRIVADO (SIEMPRE al menos 1 SCREEN)
         <>
-          {/* ✅ SUPER ADMIN (tu UI nueva) */}
+          {/* ✅ SUPER ADMIN */}
           {(role === "superadmin" || role === "super_admin") && (
             <Stack.Screen name="SuperAdminDashboard" component={SuperAdminTabs} />
           )}
 
-          {/* ✅ ADMIN DE CLÍNICA (conserva lo que ya está en main) */}
+          {/* ✅ ADMIN CLÍNICA */}
           {(role === "clinic_admin" || role === "admin") && (
             <Stack.Screen name="AdminDashboard" component={AdminTabs} />
           )}
-          
-          {/* Veterinario */}
-          {user.roles?.[0]?.name === "veterinarian" && (
-             <Stack.Screen name="VetDashboard" component={VetPlaceholder} />
+
+          {/* ✅ VETERINARIO */}
+          {(role === "veterinario" || role === "veterinarian") && (
+            <Stack.Screen name="VetDashboard" component={VetPlaceholder} />
           )}
-          
-          {/* Otros (Super Admin o sin rol) */}
-          {(!user.roles?.[0] || user.roles[0].name === "super_admin") && (
-             <Stack.Screen name="SuperAdmin" component={AdminPlaceholder} />
+
+          {/* ✅ CLIENTE */}
+          {(role === "cliente" || role === "client") && (
+            <Stack.Screen name="ClientDashboard" component={ClientTabs} />
           )}
+
+          {/* ✅ FALLBACK */}
+          {!role && <Stack.Screen name="UnknownRole" component={AdminPlaceholder} />}
+          {role &&
+            !["superadmin", "super_admin", "clinic_admin", "admin", "veterinario", "veterinarian", "cliente", "client"].includes(role) && (
+              <Stack.Screen name="UnknownRole2" component={AdminPlaceholder} />
+            )}
         </>
       )}
     </Stack.Navigator>
