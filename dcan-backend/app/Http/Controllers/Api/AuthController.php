@@ -88,4 +88,46 @@ class AuthController extends Controller
             'clinic_id' => $request->user()->clinic_id,
         ]);
     }
+
+   
+    // ACTUALIZAR PERFIL (Nombre/Email)
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+        
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+        ]);
+
+        $user->update($request->only('name', 'email'));
+
+        return response()->json([
+            'message' => 'Perfil actualizado',
+            'user' => $user->load('roles')
+        ]);
+    }
+
+    // CAMBIAR CONTRASEÑA CON VALIDACIÓN
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        // Verificar que la contraseña actual sea correcta
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'La contraseña actual es incorrecta'], 422);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->new_password)
+        ]);
+
+        return response()->json(['message' => 'Contraseña actualizada con éxito']);
+    }
+
 }

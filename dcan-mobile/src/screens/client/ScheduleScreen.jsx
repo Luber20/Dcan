@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Linking } from "react-native"; 
 import { Title, Text, Button, Avatar, Chip, ActivityIndicator, TextInput } from "react-native-paper";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -24,13 +24,13 @@ export default function ScheduleScreen({ navigation }) {
   const [selectedPet, setSelectedPet] = useState(null);
   const [selectedVet, setSelectedVet] = useState(null);
   const [serviceType, setServiceType] = useState("Consulta");
-  const [otherService, setOtherService] = useState(""); // 👈 Estado para el servicio personalizado
+  const [otherService, setOtherService] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState(null);
 
-  const services = ["Consulta", "Vacuna", "Estética", "Cirugía", "Otro"]; // 👈 Agregamos "Otro"
+  const services = ["Consulta", "Vacuna", "Estética", "Cirugía", "Otro"];
   const timeSlots = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "14:00", "14:30", "15:00", "15:30", "16:00"];
 
   const loadInitialData = async () => {
@@ -57,7 +57,6 @@ export default function ScheduleScreen({ navigation }) {
       setSelectedPet(editData.pet_id);
       setSelectedVet(editData.veterinarian_id);
       
-      // Lógica para detectar si el servicio era uno de la lista o "Otro"
       if (services.includes(editData.type)) {
         setServiceType(editData.type);
       } else {
@@ -89,12 +88,40 @@ export default function ScheduleScreen({ navigation }) {
     if (selectedDate) setDate(selectedDate);
   };
 
+  // 📅 FUNCIÓN: Generar Link de Google Calendar
+  const addToCalendar = (appointmentDate, appointmentTime, petName) => {
+    try {
+      const [hours, minutes] = appointmentTime.split(':');
+      
+      const startDate = new Date(appointmentDate);
+      startDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      
+      const endDate = new Date(startDate);
+      endDate.setHours(startDate.getHours() + 1); // Duración estimada 1h
+
+      // Formato requerido por Google: YYYYMMDDTHHMMSS
+      const formatDate = (date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+
+      const startStr = formatDate(startDate);
+      const endStr = formatDate(endDate);
+
+      const title = encodeURIComponent(`Cita Veterinaria: ${petName}`);
+      const details = encodeURIComponent(`Cita en D'CAN para ${petName}. ${notes ? 'Notas: ' + notes : ''}`);
+      const location = encodeURIComponent("Clínica Veterinaria D'CAN");
+      
+      const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${location}`;
+
+      Linking.openURL(url);
+    } catch (error) {
+      Alert.alert("Error", "No pudimos abrir el calendario.");
+    }
+  };
+
   const handleSchedule = async () => {
     if (!selectedPet || !selectedTime) {
       return Alert.alert("Atención", "Por favor selecciona la mascota y la hora de la cita.");
     }
     
-    // Si eligió "Otro" pero no escribió nada
     if (serviceType === "Otro" && !otherService.trim()) {
       return Alert.alert("Atención", "Por favor escribe el tipo de servicio que necesitas.");
     }
@@ -106,21 +133,50 @@ export default function ScheduleScreen({ navigation }) {
         veterinarian_id: selectedVet,
         date: format(date, "yyyy-MM-dd"),
         time: selectedTime,
-        type: serviceType === "Otro" ? otherService : serviceType, // 👈 Enviamos el texto personalizado si es "Otro"
+        type: serviceType === "Otro" ? otherService : serviceType,
         notes: notes
       };
 
       if (editData) {
+        // EDICIÓN: Solo guardamos, no abrimos calendario
         await axios.put(`${API_URL}/appointments/${editData.id}`, payload);
         Alert.alert("¡Éxito!", "Cita actualizada correctamente.");
+        resetForm();
+        setIsFormVisible(false);
+        navigation.navigate("Mis Citas");
       } else {
+        // CREACIÓN: Guardamos y preguntamos por el calendario
         await axios.post(`${API_URL}/appointments`, payload);
-        Alert.alert("¡Éxito!", "Tu cita ha sido agendada con éxito.");
+        
+        const petObj = pets.find(p => p.id === selectedPet);
+        const petName = petObj?.name || "Mascota";
+
+        // ✨ PREGUNTAR AL USUARIO
+        Alert.alert(
+          "¡Cita Agendada! 🎉",
+          "¿Quieres agregar un recordatorio en Google Calendar?",
+          [
+            { 
+              text: "No, gracias", 
+              style: "cancel",
+              onPress: () => {
+                resetForm();
+                setIsFormVisible(false);
+                navigation.navigate("Mis Citas");
+              }
+            },
+            { 
+              text: "Sí, agregar 📅", 
+              onPress: () => {
+                addToCalendar(date, selectedTime, petName);
+                resetForm();
+                setIsFormVisible(false);
+                navigation.navigate("Mis Citas");
+              } 
+            }
+          ]
+        );
       }
-      
-      resetForm();
-      setIsFormVisible(false);
-      navigation.navigate("Mis Citas"); 
     } catch (error) {
       Alert.alert("Error", "No pudimos procesar tu cita.");
     } finally {
@@ -190,7 +246,6 @@ export default function ScheduleScreen({ navigation }) {
         ))}
       </View>
 
-      {/* 👈 CAMPO DINÁMICO PARA "OTRO" */}
       {serviceType === "Otro" && (
         <TextInput
           label="¿Qué servicio necesitas?"
@@ -267,7 +322,7 @@ const styles = StyleSheet.create({
   petName: { marginTop: 8, fontSize: 13, fontWeight: 'bold' },
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: { marginBottom: 5, borderRadius: 10 },
-  otherInput: { marginTop: 10, backgroundColor: 'transparent' }, // Estilo para el input extra
+  otherInput: { marginTop: 10, backgroundColor: 'transparent' }, 
   vetCard: { alignItems: 'center', marginRight: 12, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: '#ddd', width: 95, backgroundColor: '#fff', elevation: 2 },
   vetName: { fontSize: 11, marginTop: 8, textAlign: 'center', fontWeight: 'bold' },
   input: { marginTop: 20, backgroundColor: '#fff' },
