@@ -26,6 +26,7 @@ export default function ClinicsDirectory() {
   const navigation = useNavigation();
 
   // ✅ clínicas reales desde API
+  //consumimos cosa de la API
   const [clinics, setClinics] = useState([]);
   const [loadingClinics, setLoadingClinics] = useState(false);
 
