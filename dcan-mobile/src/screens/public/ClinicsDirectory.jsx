@@ -1,11 +1,5 @@
-import React, { useMemo, useState } from "react";
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  Image,
-  Text,
-} from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, StyleSheet, FlatList, Image, Text } from "react-native";
 import {
   Card,
   Title,
@@ -20,29 +14,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
-
-// ⚠️ NOTA: Estos IDs (1, 2, 3...) deben coincidir con los de tu base de datos Laravel
-// Si haces 'php artisan migrate:refresh --seed', coincidirán perfectamente.
-const CLINICS = [
-  { id: "1", name: "Austrovet Cuenca", province: "Azuay", canton: "Cuenca", address: "Huayna-Cápac y Av. Loja", phone: "07-2246815" },
-  { id: "2", name: "Instavet Guayaquil", province: "Guayas", canton: "Guayaquil", address: "Av. Francisco de Orellana", phone: "04-6002132" },
-  { id: "3", name: "Happy Pet Quito", province: "Pichincha", canton: "Quito", address: "Av. Amazonas", phone: "02-1234567" },
-  { id: "4", name: "AvicMartin Guayaquil", province: "Guayas", canton: "Guayaquil", address: "Km 13 vía Daule", phone: "04-1234567" },
-  { id: "5", name: "Veterinaria Norte Quito", province: "Pichincha", canton: "Quito", address: "Carapungo", phone: "02-9876543" },
-  { id: "6", name: "D’Can Vet Manta", province: "Manabí", canton: "Manta", address: "Av. Malecón", phone: "05-1234567" },
-  { id: "7", name: "Rintintin Machala", province: "El Oro", canton: "Machala", address: "Centro", phone: "07-9876543" },
-  { id: "8", name: "Veterinaria Azogues", province: "Cañar", canton: "Azogues", address: "Av. 24 de Mayo", phone: "07-2246815" },
-  { id: "9", name: "Clínica Loja", province: "Loja", canton: "Loja", address: "Centro histórico", phone: "07-5678901" },
-  { id: "10", name: "My Pet Quito", province: "Pichincha", canton: "Quito", address: "Valle de los Chillos", phone: "02-3456789" },
-];
+import axios from "axios";
+import { API_URL } from "../../config/api";
 
 function uniqueSorted(arr) {
-  return Array.from(new Set(arr)).sort((a, b) => a.localeCompare(b));
+  return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
 export default function ClinicsDirectory() {
   const { user } = useAuth();
   const navigation = useNavigation();
+
+  // ✅ clínicas reales desde API
+  //consumimos cosa de la API
+  const [clinics, setClinics] = useState([]);
+  const [loadingClinics, setLoadingClinics] = useState(false);
 
   const [search, setSearch] = useState("");
   const [selectedProvince, setSelectedProvince] = useState("Todas");
@@ -50,31 +36,57 @@ export default function ClinicsDirectory() {
   const [provinceModal, setProvinceModal] = useState(false);
   const [cantonModal, setCantonModal] = useState(false);
 
-  const provinces = useMemo(() => ["Todas", ...uniqueSorted(CLINICS.map((c) => c.province))], []);
+  const fetchClinics = async () => {
+    setLoadingClinics(true);
+    try {
+      const res = await axios.get(`${API_URL}/clinics`);
+      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+      setClinics(list);
+    } catch (e) {
+      setClinics([]);
+    } finally {
+      setLoadingClinics(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClinics();
+  }, []);
+
+  const provinces = useMemo(
+    () => ["Todas", ...uniqueSorted(clinics.map((c) => c.province))],
+    [clinics]
+  );
 
   const cantons = useMemo(() => {
-    const list = selectedProvince === "Todas"
-      ? CLINICS.map((c) => c.canton)
-      : CLINICS.filter((c) => c.province === selectedProvince).map((c) => c.canton);
+    const list =
+      selectedProvince === "Todas"
+        ? clinics.map((c) => c.canton)
+        : clinics.filter((c) => c.province === selectedProvince).map((c) => c.canton);
+
     return ["Todos", ...uniqueSorted(list)];
-  }, [selectedProvince]);
+  }, [clinics, selectedProvince]);
 
   const filteredClinics = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return CLINICS.filter((c) => {
+
+    return clinics.filter((c) => {
       const matchesProvince = selectedProvince === "Todas" || c.province === selectedProvince;
       const matchesCanton = selectedCanton === "Todos" || c.canton === selectedCanton;
-      const matchesSearch = q === "" || `${c.name} ${c.address} ${c.province} ${c.canton}`.toLowerCase().includes(q);
+      const matchesSearch =
+        q === "" ||
+        `${c.name ?? ""} ${c.address ?? ""} ${c.province ?? ""} ${c.canton ?? ""}`
+          .toLowerCase()
+          .includes(q);
+
       return matchesProvince && matchesCanton && matchesSearch;
     });
-  }, [search, selectedProvince, selectedCanton]);
+  }, [clinics, search, selectedProvince, selectedCanton]);
 
   const handleSelectClinic = (clinic) => {
-    // Si no hay usuario logueado, vamos al Login pasando la clínica elegida
     if (!user) {
       navigation.navigate("Login", { selectedClinic: clinic });
     } else {
-      // Si ya está logueado, aquí podrías llevarlo a "Agendar Cita" directamente
       alert(`Clínica seleccionada: ${clinic.name}`);
     }
   };
@@ -107,6 +119,7 @@ export default function ClinicsDirectory() {
             >
               {selectedProvince === "Todas" ? "Provincia" : selectedProvince}
             </Chip>
+
             <Chip
               mode="outlined"
               selected={selectedCanton !== "Todos"}
@@ -116,6 +129,16 @@ export default function ClinicsDirectory() {
             >
               {selectedCanton === "Todos" ? "Cantón" : selectedCanton}
             </Chip>
+
+            <Chip
+              mode="outlined"
+              onPress={fetchClinics}
+              style={styles.chip}
+              textStyle={styles.chipText}
+            >
+              {loadingClinics ? "Cargando..." : "Actualizar"}
+            </Chip>
+
             {(selectedProvince !== "Todas" || selectedCanton !== "Todos" || search !== "") && (
               <Chip
                 icon="close"
@@ -135,18 +158,29 @@ export default function ClinicsDirectory() {
 
         <FlatList
           data={filteredClinics}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <View style={{ padding: 20, alignItems: "center" }}>
+              <Text style={{ color: "#666" }}>
+                {loadingClinics ? "Cargando clínicas..." : "No hay clínicas registradas."}
+              </Text>
+            </View>
+          }
           renderItem={({ item }) => (
             <Card style={styles.card}>
               <Card.Content>
                 <Title style={styles.cardTitle}>{item.name}</Title>
-                <Paragraph style={styles.cardMeta}>{item.province} - {item.canton}</Paragraph>
-                <Paragraph style={styles.cardAddress}>{item.address}</Paragraph>
+                <Paragraph style={styles.cardMeta}>
+                  {(item.province || "—")} - {(item.canton || "—")}
+                </Paragraph>
+                <Paragraph style={styles.cardAddress}>{item.address || "—"}</Paragraph>
                 <Paragraph style={styles.cardPhone}>
-                  <Text style={{ fontWeight: "bold", color: "#2E8B57" }}>Tel:</Text> {item.phone}
+                  <Text style={{ fontWeight: "bold", color: "#2E8B57" }}>Tel:</Text>{" "}
+                  {item.phone || "—"}
                 </Paragraph>
               </Card.Content>
+
               <Card.Actions>
                 <Button onPress={() => handleSelectClinic(item)}>Ver clínica</Button>
                 <Button mode="contained" onPress={() => handleSelectClinic(item)} buttonColor="#2E8B57">
@@ -171,7 +205,7 @@ export default function ClinicsDirectory() {
                     setSelectedCanton("Todos");
                     setProvinceModal(false);
                   }}
-                  left={() => item === selectedProvince ? <List.Icon icon="check" color="#2E8B57" /> : null}
+                  left={() => (item === selectedProvince ? <List.Icon icon="check" color="#2E8B57" /> : null)}
                 />
               )}
             />
@@ -189,7 +223,7 @@ export default function ClinicsDirectory() {
                     setSelectedCanton(item);
                     setCantonModal(false);
                   }}
-                  left={() => item === selectedCanton ? <List.Icon icon="check" color="#2E8B57" /> : null}
+                  left={() => (item === selectedCanton ? <List.Icon icon="check" color="#2E8B57" /> : null)}
                 />
               )}
             />
