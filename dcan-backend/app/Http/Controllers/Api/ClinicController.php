@@ -3,53 +3,80 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Clinic;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class ClinicController extends Controller
 {
+    // ==========================
+    // SUPERADMIN: CLÍNICAS
+    // ==========================
+
     public function index()
     {
-        // Lista clínicas (incluye inactivas)
         return response()->json(Clinic::orderBy('id', 'desc')->get());
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'    => 'required|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'phone'   => 'nullable|string|max:50',
+            'name'        => 'required|string|max:255',
+            'province'    => 'nullable|string|max:255',
+            'canton'      => 'nullable|string|max:255',
+            'address'     => 'nullable|string|max:255',
+            'phone'       => 'nullable|string|max:50',
+            'hours'       => 'nullable|string|max:255',
+            'admin_email' => 'nullable|email|max:255',
+            'ruc'         => 'nullable|string|max:50',
         ]);
 
-        $clinic = Clinic::create($data + ['is_active' => true]);
+        $clinic = Clinic::create([
+            'name'        => $data['name'],
+            'province'    => $data['province'] ?? null,
+            'canton'      => $data['canton'] ?? null,
+            'address'     => $data['address'] ?? null,
+            'phone'       => $data['phone'] ?? null,
+            'hours'       => $data['hours'] ?? null,
+            'admin_email' => $data['admin_email'] ?? null,
+            'ruc'         => $data['ruc'] ?? null,
+            'is_active'   => true,
+        ]);
 
         return response()->json([
             'message' => 'Clínica creada',
-            'clinic' => $clinic
+            'clinic'  => $clinic,
         ], 201);
     }
 
     public function update(Request $request, Clinic $clinic)
     {
-        // Verificar que el usuario sea clinic_admin (puede editar cualquier clínica)
-        if (!$request->user()->hasRole('clinic_admin')) {
-            return response()->json(['message' => 'No autorizado'], 403);
-        }
-
         $data = $request->validate([
-            'name'    => 'required|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'phone'   => 'nullable|string|max:50',
-            'hours'   => 'nullable|string|max:255',
+            'name'        => 'required|string|max:255',
+            'province'    => 'nullable|string|max:255',
+            'canton'      => 'nullable|string|max:255',
+            'address'     => 'nullable|string|max:255',
+            'phone'       => 'nullable|string|max:50',
+            'hours'       => 'nullable|string|max:255',
+            'admin_email' => 'nullable|email|max:255',
+            'ruc'         => 'nullable|string|max:50',
         ]);
 
-        $clinic->update($data);
+        $clinic->update([
+            'name'        => $data['name'],
+            'province'    => $data['province'] ?? $clinic->province ?? null,
+            'canton'      => $data['canton'] ?? $clinic->canton ?? null,
+            'address'     => $data['address'] ?? $clinic->address ?? null,
+            'phone'       => $data['phone'] ?? $clinic->phone ?? null,
+            'hours'       => $data['hours'] ?? $clinic->hours ?? null,
+            'admin_email' => $data['admin_email'] ?? $clinic->admin_email ?? null,
+            'ruc'         => $data['ruc'] ?? $clinic->ruc ?? null,
+        ]);
 
         return response()->json([
             'message' => 'Clínica actualizada',
-            'clinic' => $clinic
+            'clinic'  => $clinic->fresh(),
         ]);
     }
 
@@ -60,13 +87,17 @@ class ClinicController extends Controller
 
         return response()->json([
             'message' => $clinic->is_active ? 'Clínica activada' : 'Clínica inactivada',
-            'clinic' => $clinic
+            'clinic'  => $clinic,
         ]);
     }
 
+    // ==========================
+    // CLINIC_ADMIN: CLIENTES / VETERINARIOS
+    // (tu código existente se mantiene igual desde aquí)
+    // ==========================
+
     public function getClients(Request $request)
     {
-        // Verificar que el usuario sea clinic_admin
         if (!$request->user()->hasRole('clinic_admin')) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
@@ -148,7 +179,7 @@ class ClinicController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $user->delete(); // Soft delete
+        $user->delete();
 
         return response()->json(['message' => 'Cliente eliminado']);
     }
@@ -159,7 +190,6 @@ class ClinicController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        // Asumir que hay un campo is_active, pero por ahora, usar deleted_at para restringir
         if ($user->trashed()) {
             $user->restore();
             $message = 'Cliente activado';
@@ -188,7 +218,11 @@ class ClinicController extends Controller
 
     public function updateVeterinarian(Request $request, User $user)
     {
-        if (!$request->user()->hasRole('clinic_admin') || $request->user()->clinic_id !== $user->clinic_id || !$user->hasRole('veterinarian')) {
+        if (
+            !$request->user()->hasRole('clinic_admin') ||
+            $request->user()->clinic_id !== $user->clinic_id ||
+            !$user->hasRole('veterinarian')
+        ) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
@@ -208,11 +242,15 @@ class ClinicController extends Controller
 
     public function deleteVeterinarian(Request $request, User $user)
     {
-        if (!$request->user()->hasRole('clinic_admin') || $request->user()->clinic_id !== $user->clinic_id || !$user->hasRole('veterinarian')) {
+        if (
+            !$request->user()->hasRole('clinic_admin') ||
+            $request->user()->clinic_id !== $user->clinic_id ||
+            !$user->hasRole('veterinarian')
+        ) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $user->delete(); // Soft delete
+        $user->delete();
 
         return response()->json(['message' => 'Veterinario eliminado']);
     }
