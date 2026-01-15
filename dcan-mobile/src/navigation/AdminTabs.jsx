@@ -8,10 +8,11 @@ import HeaderRightLogout from "../components/HeaderRightLogout";
 // Import screens
 import ClinicManagement from "../screens/admin/ClinicManagement";
 import StaffManagement from "../screens/admin/StaffManagement";
-import ClientManagement from "../screens/admin/ClientManagement";
-import AppointmentManagement from "../screens/admin/AppointmentManagement";
-import ClinicsList from "../screens/admin/ClinicsList";
-import ClinicEdit from "../screens/admin/ClinicEdit";
+import ClinicsList from "../screens/admin/ClinicsList"; // Make sure this is imported
+import ClinicEdit from "../screens/admin/ClinicEdit"; // Make sure this is imported
+import AdminProfileScreen from "../screens/admin/AdminProfileScreen"; // Make sure this is imported
+import CreateClinicScreen from "../screens/admin/CreateClinicScreen"; // New screen
+import CreateVetScreen from "../screens/admin/CreateVetScreen"; // New screen
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -28,12 +29,35 @@ function ClinicStack() {
       <Stack.Screen
         name="ClinicsList"
         component={ClinicsList}
-        options={{ title: "Todas las Clínicas" }}
+        options={{ title: "Mis Clínicas" }}
       />
       <Stack.Screen
         name="ClinicEdit"
         component={ClinicEdit}
         options={{ title: "Editar Clínica" }}
+      />
+      <Stack.Screen
+        name="CreateClinic"
+        component={CreateClinicScreen}
+        options={{ title: "Crear Nueva Clínica" }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+// Stack para Veterinarios
+function StaffStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="StaffHome"
+        component={StaffManagement}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CreateVet"
+        component={CreateVetScreen}
+        options={{ title: "Crear Veterinario" }}
       />
     </Stack.Navigator>
   );
@@ -55,47 +79,43 @@ export default function AdminTabs() {
         options={{
           title: "Clínica",
           tabBarIcon: ({ color, size, focused }) => (
-            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
-              <Ionicons name="paw" size={size} color={color} />
+            <Animatable.View
+              animation={focused ? "bounce" : undefined}
+              duration={500}
+            >
+              <Ionicons name="business-outline" size={size} color={color} />
             </Animatable.View>
           ),
         }}
       />
 
       <Tab.Screen
-        name="Staff"
-        component={StaffManagement}
+        name="Veterinarians"
+        component={StaffStack}
         options={{
-          title: "Personal",
+          title: "Veterinarios",
           tabBarIcon: ({ color, size, focused }) => (
-            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
-              <Ionicons name="paw" size={size} color={color} />
+            <Animatable.View
+              animation={focused ? "bounce" : undefined}
+              duration={500}
+            >
+              <Ionicons name="people-outline" size={size} color={color} />
             </Animatable.View>
           ),
         }}
       />
 
       <Tab.Screen
-        name="Clients"
-        component={ClientManagement}
+        name="AdminProfile"
+        component={AdminProfileScreen}
         options={{
-          title: "Clientes",
+          title: "Perfil",
           tabBarIcon: ({ color, size, focused }) => (
-            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
-              <Ionicons name="paw" size={size} color={color} />
-            </Animatable.View>
-          ),
-        }}
-      />
-
-      <Tab.Screen
-        name="Appointments"
-        component={AppointmentManagement}
-        options={{
-          title: "Citas",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Animatable.View animation={focused ? "bounce" : undefined} duration={500}>
-              <Ionicons name="paw" size={size} color={color} />
+            <Animatable.View
+              animation={focused ? "bounce" : undefined}
+              duration={500}
+            >
+              <Ionicons name="person-circle-outline" size={size} color={color} />
             </Animatable.View>
           ),
         }}

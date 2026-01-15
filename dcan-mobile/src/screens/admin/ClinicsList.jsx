@@ -18,7 +18,7 @@ export default function ClinicsList() {
 
   const fetchClinics = async () => {
     try {
-      const response = await axios.get(`${API_URL}/clinics`, {
+      const response = await axios.get(`${API_URL}/my-clinics`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClinics(response.data);
@@ -49,7 +49,7 @@ export default function ClinicsList() {
 
   return (
     <View style={styles.container}>
-      <Title>Todas las Clínicas</Title>
+      <Title>Mis Clínicas</Title>
       <FlatList
         data={clinics}
         keyExtractor={(item) => item.id.toString()}
