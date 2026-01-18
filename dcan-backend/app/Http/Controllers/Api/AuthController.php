@@ -4,22 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Clinic;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    // REGISTER (para clientes o admins de clínica)
+    // REGISTER (Mantenemos tu lógica original)
     public function register(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'clinic_id' => 'required|exists:clinics,id',  // La clínica debe existir
-            'role' => 'required|in:client,veterinarian,clinic_admin',  // Solo estos roles por registro
+            'clinic_id' => 'required|exists:clinics,id',
+            'role' => 'required|in:client,veterinarian,clinic_admin',
         ]);
 
         $user = User::create([
@@ -29,7 +28,6 @@ class AuthController extends Controller
             'clinic_id' => $request->clinic_id,
         ]);
 
-        // Asignar rol
         $user->assignRole($request->role);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -42,7 +40,7 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // LOGIN
+    // LOGIN (Mantenemos tu estructura de respuesta con 'token' y 'clinic_id')
     public function login(Request $request)
     {
         $request->validate([
@@ -50,27 +48,34 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $email = strtolower($request->email); // ← Forzamos minúsculas
+        $email = strtolower($request->email); 
 
+        // Buscamos usuario ignorando mayúsculas/minúsculas
         $user = User::whereRaw('lower(email) = ?', [$email])->first();
+
+        // Verificamos contraseña
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Las credenciales son incorrectas.'],
             ]);
         }
 
+        // Eliminamos tokens viejos para mantener limpieza (opcional, pero recomendado)
+        $user->tokens()->delete();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // ✅ RESPUESTA EXACTA QUE TU APP ESPERA
         return response()->json([
             'message' => 'Login exitoso',
             'user' => $user->load('roles'),
-            'clinic_id' => $user->clinic_id,
-            'token' => $token,
+            'clinic_id' => $user->clinic_id, // Vital para tu frontend
+            'token' => $token,               // Vital para tu frontend
             'token_type' => 'Bearer'
         ]);
     }
 
-    // LOGOUT (revoca el token actual)
+    // LOGOUT
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
@@ -80,7 +85,7 @@ class AuthController extends Controller
         ]);
     }
 
-    // ME (obtener datos del usuario autenticado)
+    // ME
     public function me(Request $request)
     {
         return response()->json([
@@ -89,8 +94,7 @@ class AuthController extends Controller
         ]);
     }
 
-   
-    // ACTUALIZAR PERFIL (Nombre/Email)
+    // ACTUALIZAR PERFIL (✅ ÚNICO CAMBIO: Agregamos 'phone')
     public function updateProfile(Request $request)
     {
         $user = $request->user();
@@ -98,9 +102,11 @@ class AuthController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string|max:20', // Agregado para que puedas editar teléfono
         ]);
 
-        $user->update($request->only('name', 'email'));
+        // Actualizamos nombre, email y teléfono
+        $user->update($request->only('name', 'email', 'phone'));
 
         return response()->json([
             'message' => 'Perfil actualizado',
@@ -108,7 +114,7 @@ class AuthController extends Controller
         ]);
     }
 
-    // CAMBIAR CONTRASEÑA CON VALIDACIÓN
+    // CAMBIAR CONTRASEÑA
     public function changePassword(Request $request)
     {
         $request->validate([
@@ -118,7 +124,6 @@ class AuthController extends Controller
 
         $user = $request->user();
 
-        // Verificar que la contraseña actual sea correcta
         if (!Hash::check($request->current_password, $user->password)) {
             return response()->json(['message' => 'La contraseña actual es incorrecta'], 422);
         }
@@ -129,5 +134,4 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Contraseña actualizada con éxito']);
     }
-
 }

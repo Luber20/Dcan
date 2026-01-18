@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Image, KeyboardAvoidingView, Platform } from "react-native";
+import { View, StyleSheet, Image, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { TextInput, Button, Title, Card, Paragraph } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
 import { useRoute } from "@react-navigation/native";
@@ -8,19 +8,16 @@ export default function LoginScreen({ navigation }) {
   const route = useRoute();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
-  // 👇 ESTADO NUEVO: Para controlar si se ve la contraseña
   const [showPassword, setShowPassword] = useState(false);
-  
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  
+  const { login, logout } = useAuth(); 
 
-  // Recuperamos la clínica si viene del directorio
   const selectedClinic = route.params?.selectedClinic || null;
 
   const handleLogin = async () => {
     if (!email || !password) {
-      alert("Por favor ingresa email y contraseña");
+      Alert.alert("Atención", "Por favor ingresa email y contraseña");
       return;
     }
 
@@ -28,8 +25,68 @@ export default function LoginScreen({ navigation }) {
     const result = await login(email.trim().toLowerCase(), password);
     setLoading(false);
 
-    if (!result.success) {
-      alert(result.message);
+    if (result.success) {
+      const user = result.user;
+      const roles = user.roles || [];
+      
+      // --- DETECCIÓN DE ROLES ---
+      const isSuperAdmin = roles.some(r => r.name === 'superadmin' || r.name === 'super_admin');
+      const isClinicAdmin = roles.some(r => r.name === 'admin' || r.name === 'clinic_admin');
+      const isVet = roles.some(r => r.name === 'veterinario' || r.name === 'veterinarian');
+      
+      // 🛡️ VERIFICACIÓN DE SEGURIDAD 
+      // (El SuperAdmin pasa siempre. Los demás deben coincidir con la clínica seleccionada)
+      if (selectedClinic && !isSuperAdmin) {
+          const userClinicId = user.clinic_id; 
+          const targetClinicId = selectedClinic.id;
+
+          if (String(userClinicId) !== String(targetClinicId)) {
+              await logout(); 
+              Alert.alert(
+                  "Acceso Denegado 🚫", 
+                  `Tu usuario pertenece a otra veterinaria.\nNo puedes entrar a "${selectedClinic.name}" con esta cuenta.`
+              );
+              return; 
+          }
+      }
+      
+      // ✅ REDIRECCIÓN INTELIGENTE SEGÚN EL ROL
+      if (selectedClinic) {
+          setTimeout(() => {
+              try {
+                  let targetRoute = 'ClientDashboard'; // Por defecto: Cliente
+                  let targetParams = { screen: "Citas", params: { screen: "Agendar" } }; // Por defecto: Agendar
+
+                  if (isSuperAdmin) {
+                      // 1. Super Admin
+                      targetRoute = 'SuperAdminDashboard';
+                      targetParams = undefined;
+                  } else if (isClinicAdmin) {
+                      // 2. Dueño de Clínica
+                      targetRoute = 'AdminDashboard';
+                      targetParams = undefined;
+                  } else if (isVet) {
+                      // 3. Veterinario (Agregado para que no falle)
+                      targetRoute = 'VetDashboard';
+                      targetParams = undefined; 
+                  }
+                  // 4. Si no es ninguno de los anteriores, se queda como ClientDashboard (Cliente)
+
+                  navigation.reset({
+                      index: 0,
+                      routes: [{ 
+                          name: targetRoute,
+                          params: targetParams
+                      }],
+                  });
+              } catch (e) {
+                  console.log("Error navegando:", e);
+              }
+          }, 100);
+      }
+
+    } else {
+      Alert.alert("Error", result.message || "Credenciales incorrectas.");
     }
   };
 
@@ -39,21 +96,19 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
     >
       <View style={styles.inner}>
-        <Image
-          source={require("../../../assets/logo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <Image source={require("../../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
 
         <Title style={styles.title}>D’CAN</Title>
-        <Paragraph style={styles.subtitle}>
-          Veterinaria de confianza
-        </Paragraph>
+        <Paragraph style={styles.subtitle}>Veterinaria de confianza</Paragraph>
 
-        {selectedClinic && (
-            <Paragraph style={{color: '#2E8B57', fontWeight: 'bold', marginBottom: 10}}>
-                Clínica: {selectedClinic.name}
-            </Paragraph>
+        {selectedClinic ? (
+            <View style={styles.clinicBadge}>
+                <Paragraph style={{color: '#155724', textAlign: 'center'}}>
+                    Ingresando a: <Paragraph style={{fontWeight: 'bold', color: '#155724'}}>{selectedClinic.name}</Paragraph>
+                </Paragraph>
+            </View>
+        ) : (
+            <Paragraph style={{color: '#666', marginBottom: 10, fontStyle:'italic'}}>Acceso General</Paragraph>
         )}
 
         <Card style={styles.card}>
@@ -64,7 +119,7 @@ export default function LoginScreen({ navigation }) {
               onChangeText={setEmail}
               mode="outlined"
               style={styles.input}
-              theme={{ roundness: 15 }}
+              theme={{ roundness: 12 }}
               left={<TextInput.Icon icon="email-outline" />}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -74,19 +129,12 @@ export default function LoginScreen({ navigation }) {
               label="Contraseña"
               value={password}
               onChangeText={setPassword}
-              // 👇 AQUÍ ESTÁ LA MAGIA DEL OJO
               secureTextEntry={!showPassword} 
               mode="outlined"
               style={styles.input}
-              theme={{ roundness: 15 }}
+              theme={{ roundness: 12 }}
               left={<TextInput.Icon icon="lock-outline" />}
-              // Icono dinámico: si showPassword es true, muestra 'eye-off', si no 'eye'
-              right={
-                <TextInput.Icon 
-                    icon={showPassword ? "eye-off" : "eye"} 
-                    onPress={() => setShowPassword(!showPassword)} 
-                />
-              }
+              right={<TextInput.Icon icon={showPassword ? "eye-off" : "eye"} onPress={() => setShowPassword(!showPassword)} />}
             />
 
             <Button
@@ -96,19 +144,17 @@ export default function LoginScreen({ navigation }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
-              theme={{ roundness: 15 }}
+              theme={{ roundness: 12 }}
+              buttonColor="#2E8B57"
             >
               Iniciar Sesión
             </Button>
 
             <Button
               mode="text"
-              onPress={() =>
-                navigation.navigate("Register", {
-                  selectedClinic: selectedClinic, 
-                })
-              }
+              onPress={() => navigation.navigate("Register", { selectedClinic: selectedClinic })}
               style={styles.link}
+              textColor="#2E8B57"
             >
               ¿No tienes cuenta? Registrarse
             </Button>
@@ -121,33 +167,22 @@ export default function LoginScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#E8F5E8" },
-  inner: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
+  inner: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
+  logo: { width: 120, height: 120, marginBottom: 10 },
+  title: { fontSize: 36, fontWeight: "bold", color: "#2E8B57", marginBottom: 5 },
+  subtitle: { fontSize: 16, color: "#666", marginBottom: 10, textAlign: "center" },
+  clinicBadge: {
+      backgroundColor: '#d4edda',
+      paddingHorizontal: 15,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: '#c3e6cb'
   },
-  logo: { width: 150, height: 150, marginBottom: 20 },
-  title: {
-    fontSize: 42,
-    fontWeight: "bold",
-    color: "#2E8B57",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: "#666",
-    marginBottom: 20, 
-    textAlign: "center",
-  },
-  card: {
-    width: "100%",
-    borderRadius: 20,
-    elevation: 10,
-    backgroundColor: "#fff",
-  },
+  card: { width: "100%", borderRadius: 20, elevation: 5, backgroundColor: "#fff" },
   input: { marginBottom: 16, backgroundColor: "#fff" },
-  button: { marginTop: 20, backgroundColor: "#2E8B57" },
-  buttonContent: { height: 55 },
+  button: { marginTop: 10 },
+  buttonContent: { height: 50 },
   link: { marginTop: 15 }
 });

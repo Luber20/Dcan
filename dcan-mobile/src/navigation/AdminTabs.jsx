@@ -2,67 +2,49 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import * as Animatable from "react-native-animatable";
 import HeaderRightLogout from "../components/HeaderRightLogout";
 
-// Import screens
-import ClinicManagement from "../screens/admin/ClinicManagement";
-import StaffManagement from "../screens/admin/StaffManagement";
-import ClinicsList from "../screens/admin/ClinicsList"; // Make sure this is imported
-import ClinicEdit from "../screens/admin/ClinicEdit"; // Make sure this is imported
-import AdminProfileScreen from "../screens/admin/AdminProfileScreen"; // Make sure this is imported
-import CreateClinicScreen from "../screens/admin/CreateClinicScreen"; // New screen
-import CreateVetScreen from "../screens/admin/CreateVetScreen"; // New screen
+// Importaciones desde la carpeta clinicAdmin
+import MyClinicScreen from "../screens/clinicAdmin/MyClinicScreen";
+import CreateVetScreen from "../screens/clinicAdmin/CreateVetScreen";
+import AdminProfileScreen from "../screens/clinicAdmin/AdminProfileScreen";
+import StaffManagement from "../screens/clinicAdmin/StaffManagement";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// Stack para Clínica
+// Stack 1: Gestión de Clínica
 function ClinicStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen
-        name="ClinicHome"
-        component={ClinicManagement}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="ClinicsList"
-        component={ClinicsList}
-        options={{ title: "Mis Clínicas" }}
-      />
-      <Stack.Screen
-        name="ClinicEdit"
-        component={ClinicEdit}
-        options={{ title: "Editar Clínica" }}
-      />
-      <Stack.Screen
-        name="CreateClinic"
-        component={CreateClinicScreen}
-        options={{ title: "Crear Nueva Clínica" }}
+        name="MyClinic"
+        component={MyClinicScreen}
+        options={{ title: "Gestionar Mi Clínica" }}
       />
     </Stack.Navigator>
   );
 }
 
-// Stack para Veterinarios
+// Stack 2: Gestión de Personal
 function StaffStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen
-        name="StaffHome"
+        name="StaffList"
         component={StaffManagement}
         options={{ headerShown: false }}
       />
       <Stack.Screen
         name="CreateVet"
         component={CreateVetScreen}
-        options={{ title: "Crear Veterinario" }}
+        options={{ title: "Nuevo Veterinario", headerBackTitle: "Volver" }}
       />
     </Stack.Navigator>
   );
 }
 
+// Navegador Principal de Pestañas
 export default function AdminTabs() {
   return (
     <Tab.Navigator
@@ -71,52 +53,33 @@ export default function AdminTabs() {
         headerStyle: { backgroundColor: "#2E8B57" },
         headerTintColor: "#fff",
         tabBarActiveTintColor: "#2E8B57",
+        tabBarStyle: { paddingBottom: 5, height: 60 },
       }}
     >
       <Tab.Screen
-        name="Clinic"
+        name="Mi Clínica"
         component={ClinicStack}
         options={{
-          title: "Clínica",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Animatable.View
-              animation={focused ? "bounce" : undefined}
-              duration={500}
-            >
-              <Ionicons name="business-outline" size={size} color={color} />
-            </Animatable.View>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="business" size={size} color={color} />
           ),
         }}
       />
-
       <Tab.Screen
-        name="Veterinarians"
+        name="Personal"
         component={StaffStack}
         options={{
-          title: "Veterinarios",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Animatable.View
-              animation={focused ? "bounce" : undefined}
-              duration={500}
-            >
-              <Ionicons name="people-outline" size={size} color={color} />
-            </Animatable.View>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
           ),
         }}
       />
-
       <Tab.Screen
-        name="AdminProfile"
+        name="Perfil"
         component={AdminProfileScreen}
         options={{
-          title: "Perfil",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Animatable.View
-              animation={focused ? "bounce" : undefined}
-              duration={500}
-            >
-              <Ionicons name="person-circle-outline" size={size} color={color} />
-            </Animatable.View>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />

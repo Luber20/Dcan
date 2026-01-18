@@ -34,8 +34,6 @@ export default function Inicio({ navigation }) {
   const [loadingClinics, setLoadingClinics] = useState(false);
   const [clinicsError, setClinicsError] = useState("");
 
-  // ✅ cargar clínicas desde API (público)
-  // Recomendado backend: GET /api/clinics (solo activas)
   const fetchClinics = async () => {
     setLoadingClinics(true);
     setClinicsError("");
@@ -235,6 +233,7 @@ function Chip({ label, onPress }) {
   );
 }
 
+// ✅ AQUÍ ESTÁ EL CAMBIO CLAVE
 function ClinicCard({ clinic, navigation, user }) {
   return (
     <View style={styles.card}>
@@ -246,7 +245,12 @@ function ClinicCard({ clinic, navigation, user }) {
       {!!clinic.phone && <Text style={[styles.cardText, { opacity: 0.8 }]}>Tel: {clinic.phone}</Text>}
 
       <View style={styles.cardActions}>
-        <Pressable style={styles.btnPrimary} onPress={() => {}}>
+        
+        {/* 👉 BOTÓN CORREGIDO: Navega a Detalles y envía el objeto 'clinic' */}
+        <Pressable 
+            style={styles.btnPrimary} 
+            onPress={() => navigation.navigate("ClinicDetails", { clinic: clinic })}
+        >
           <Text style={styles.btnPrimaryText}>Ver clínica</Text>
         </Pressable>
 
@@ -257,7 +261,8 @@ function ClinicCard({ clinic, navigation, user }) {
               navigation.navigate("Login");
               return;
             }
-            console.log("Agendar cita para:", clinic.name);
+            // Agendar directo:
+            navigation.navigate("ClientDashboard", { screen: "Citas", params: { screen: "Agendar" } });
           }}
         >
           <Text style={styles.btnOutlineText}>Agendar cita</Text>

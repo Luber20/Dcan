@@ -19,5 +19,15 @@ class Clinic extends Model
         'ruc',
         'hours',
         'is_active',
+        // ✅ Agregamos estos por si acaso los usas a futuro para las fotos
+        'photo_url', 
+        'description',
+        'latitude',
+        'longitude'
+    ];
+
+    // Esto asegura que los tipos de datos sean correctos
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 }

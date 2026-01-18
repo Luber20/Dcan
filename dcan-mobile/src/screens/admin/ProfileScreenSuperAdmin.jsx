@@ -1,105 +1,92 @@
 import React, { useMemo, useState } from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
-import {
-  Card,
-  Title,
-  Paragraph,
-  TextInput,
-  Button,
-  Switch,
-  Divider,
-  HelperText,
-} from "react-native-paper";
+import { View, StyleSheet, ScrollView, Alert } from "react-native";
+import { Card, Title, Paragraph, TextInput, Button, Switch, Divider, HelperText } from "react-native-paper";
 import axios from "axios";
-
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { API_URL } from "../../config/api";
 
 export default function ProfileScreenSuperAdmin() {
   const { user, token, logout, loadToken } = useAuth();
-  const { theme, toggleTheme } = useTheme(); // ✅ tu ThemeContext expone theme + toggleTheme
+  const { theme, toggleTheme } = useTheme(); 
+  const isDark = !!theme?.isDarkMode;
 
-  const isDark = !!theme?.isDarkMode; // ✅ tu dark mode vive aquí
-
-  const headers = useMemo(
-    () => ({
+  const headers = useMemo(() => ({
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
-    }),
-    [token]
-  );
+  }), [token]);
 
+  // Datos Perfil
   const [name, setName] = useState(user?.name || "");
+  const [email, setEmail] = useState(user?.email || ""); 
+  const [phone, setPhone] = useState(user?.phone || ""); 
   const [savingProfile, setSavingProfile] = useState(false);
-  const [profileMsg, setProfileMsg] = useState("");
-  const [profileErr, setProfileErr] = useState("");
 
-  // Password
+  // Datos Contraseña
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPass, setSavingPass] = useState(false);
-  const [passMsg, setPassMsg] = useState("");
-  const [passErr, setPassErr] = useState("");
 
-  const role =
-    user?.role ||
-    (Array.isArray(user?.roles) && user.roles[0]?.name) ||
-    "—";
-
+  // ✅ 1. GUARDAR PERFIL (Usa PUT /profile/update)
   const saveProfile = async () => {
-    setProfileErr("");
-    setProfileMsg("");
-
-    if (!name.trim()) {
-      setProfileErr("El nombre no puede estar vacío.");
+    if (!name.trim() || !email.trim()) {
+      Alert.alert("Error", "Nombre y correo son obligatorios.");
       return;
     }
 
     setSavingProfile(true);
     try {
-      // TODO: ajusta si tu backend usa otra ruta
-      await axios.patch(`${API_URL}/me`, { name: name.trim() }, { headers });
+      await axios.put(`${API_URL}/profile/update`, { 
+          name, 
+          email, 
+          phone 
+      }, { headers });
 
-      setProfileMsg("Perfil actualizado.");
-      await loadToken(); // refresca el user en AuthContext
+      Alert.alert("Éxito", "Perfil actualizado.");
+      await loadToken(); // Recargar datos en la app
     } catch (e) {
-      setProfileErr("No se pudo actualizar el perfil.");
+      console.log(e.response?.data);
+      Alert.alert("Error", e.response?.data?.message || "No se pudo actualizar.");
     } finally {
       setSavingProfile(false);
     }
   };
 
+  // ✅ 2. CAMBIAR CONTRASEÑA (Usa POST /profile/change-password)
   const changePassword = async () => {
-    setPassErr("");
-    setPassMsg("");
-
-    if (!currentPassword.trim() || !newPassword.trim()) {
-      setPassErr("Completa la contraseña actual y la nueva.");
+    if (!currentPassword || !newPassword) {
+      Alert.alert("Error", "Completa todos los campos.");
       return;
     }
-    if (newPassword.trim().length < 8) {
-      setPassErr("La nueva contraseña debe tener al menos 8 caracteres.");
+    if (newPassword.length < 6) {
+      Alert.alert("Error", "La nueva contraseña debe tener al menos 6 caracteres.");
       return;
+    }
+    if (newPassword !== confirmPassword) {
+        Alert.alert("Error", "Las contraseñas nuevas no coinciden.");
+        return;
     }
 
     setSavingPass(true);
     try {
-      // TODO: ajusta si tu backend usa otra ruta
-      await axios.patch(
-        `${API_URL}/me/password`,
+      // Importante: Enviamos new_password_confirmation para que Laravel no de error
+      await axios.post(`${API_URL}/profile/change-password`,
         {
-          current_password: currentPassword.trim(),
-          new_password: newPassword.trim(),
+          current_password: currentPassword,
+          new_password: newPassword,
+          new_password_confirmation: confirmPassword 
         },
         { headers }
       );
 
-      setPassMsg("Contraseña actualizada.");
+      Alert.alert("Éxito", "Contraseña cambiada correctamente.");
       setCurrentPassword("");
       setNewPassword("");
+      setConfirmPassword("");
     } catch (e) {
-      setPassErr("No se pudo cambiar la contraseña. Verifica la contraseña actual.");
+      const msg = e.response?.data?.message || "Error al cambiar contraseña.";
+      Alert.alert("Error", msg);
     } finally {
       setSavingPass(false);
     }
@@ -108,137 +95,55 @@ export default function ProfileScreenSuperAdmin() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-        <Title style={[styles.title, { color: theme.colors.primary }]}>Mi perfil</Title>
+        <Title style={[styles.title, { color: theme.colors.primary }]}>Mi Perfil</Title>
 
-        {/* Info */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
+        {/* Tarjeta Info */}
+        <Card style={styles.card}>
           <Card.Content>
-            <Title style={{ marginBottom: 6, color: theme.colors.text }}>
-              {user?.name || "Usuario"}
-            </Title>
-
-            <Paragraph style={[styles.muted, { color: theme.colors.subtitle }]}>
-              {user?.email || "—"}
-            </Paragraph>
-            <Paragraph style={[styles.muted, { color: theme.colors.subtitle }]}>
-              Rol: {role}
-            </Paragraph>
-
+            <Title>{user?.name}</Title>
+            <Paragraph style={{ opacity: 0.7 }}>{user?.email}</Paragraph>
             <Divider style={{ marginVertical: 12 }} />
-
             <View style={styles.rowBetween}>
-              <Paragraph style={{ fontWeight: "600", color: theme.colors.text }}>
-                Modo oscuro
-              </Paragraph>
-
+              <Paragraph>Modo Oscuro</Paragraph>
               <Switch value={isDark} onValueChange={toggleTheme} />
             </View>
           </Card.Content>
         </Card>
 
-        {/* Editar nombre */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
+        {/* Editar Datos */}
+        <Card style={styles.card}>
           <Card.Content>
-            <Title style={{ marginBottom: 10, color: theme.colors.text }}>
-              Editar información
-            </Title>
-
-            <TextInput
-              label="Nombre de usuario"
-              value={name}
-              onChangeText={setName}
-              mode="outlined"
-              style={{ marginBottom: 10 }}
-            />
-
-            {!!profileErr && (
-              <HelperText type="error" visible={true}>
-                {profileErr}
-              </HelperText>
-            )}
-            {!!profileMsg && (
-              <HelperText type="info" visible={true}>
-                {profileMsg}
-              </HelperText>
-            )}
-
-            <Button
-              mode="contained"
-              icon="content-save"
-              onPress={saveProfile}
-              loading={savingProfile}
-              disabled={savingProfile}
-            >
-              Guardar cambios
+            <Title style={{ marginBottom: 10 }}>Editar Información</Title>
+            <TextInput label="Nombre" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
+            <TextInput label="Correo" value={email} onChangeText={setEmail} mode="outlined" style={styles.input} autoCapitalize="none" />
+            <TextInput label="Teléfono" value={phone} onChangeText={setPhone} mode="outlined" style={styles.input} keyboardType="phone-pad" />
+            
+            <Button mode="contained" onPress={saveProfile} loading={savingProfile} disabled={savingProfile}>
+              Guardar Cambios
             </Button>
           </Card.Content>
         </Card>
 
-        {/* Cambiar contraseña */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
+        {/* Cambiar Contraseña */}
+        <Card style={styles.card}>
           <Card.Content>
-            <Title style={{ marginBottom: 10, color: theme.colors.text }}>
-              Seguridad
-            </Title>
+            <Title style={{ marginBottom: 10 }}>Seguridad</Title>
+            <TextInput label="Contraseña Actual" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry mode="outlined" style={styles.input} />
+            <TextInput label="Nueva Contraseña" value={newPassword} onChangeText={setNewPassword} secureTextEntry mode="outlined" style={styles.input} />
+            <TextInput label="Confirmar Nueva" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry mode="outlined" style={styles.input} />
 
-            <TextInput
-              label="Contraseña actual"
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              secureTextEntry
-              mode="outlined"
-              style={{ marginBottom: 10 }}
-            />
-
-            <TextInput
-              label="Nueva contraseña"
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-              mode="outlined"
-              style={{ marginBottom: 10 }}
-            />
-
-            {!!passErr && (
-              <HelperText type="error" visible={true}>
-                {passErr}
-              </HelperText>
-            )}
-            {!!passMsg && (
-              <HelperText type="info" visible={true}>
-                {passMsg}
-              </HelperText>
-            )}
-
-            <Button
-              mode="contained"
-              icon="lock-reset"
-              onPress={changePassword}
-              loading={savingPass}
-              disabled={savingPass}
-            >
-              Cambiar contraseña
+            <Button mode="contained" onPress={changePassword} loading={savingPass} disabled={savingPass} buttonColor="#555">
+              Cambiar Contraseña
             </Button>
           </Card.Content>
         </Card>
 
-        {/* Cerrar sesión */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
-          <Card.Content>
-            <Button
-              mode="contained"
-              buttonColor="#D32F2F"
-              icon="logout"
-              onPress={logout}
-            >
-              Cerrar sesión
+        <View style={{ paddingHorizontal: 16 }}>
+            <Button mode="contained" onPress={logout} buttonColor="#D32F2F" icon="logout" style={{ marginTop: 10 }}>
+                Cerrar Sesión
             </Button>
-          </Card.Content>
-        </Card>
+        </View>
 
-        <Paragraph style={[styles.footer, { color: theme.colors.subtitle }]}>
-          DCAN · Panel SuperAdmin
-        </Paragraph>
       </ScrollView>
     </View>
   );
@@ -246,20 +151,8 @@ export default function ProfileScreenSuperAdmin() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginTop: 16,
-    marginBottom: 10,
-  },
-  card: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 16,
-    elevation: 3,
-  },
-  muted: { opacity: 0.9 },
+  title: { fontSize: 26, fontWeight: "bold", textAlign: "center", marginTop: 20, marginBottom: 10 },
+  card: { marginHorizontal: 16, marginVertical: 8, borderRadius: 12, elevation: 2, backgroundColor: 'white' },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  footer: { textAlign: "center", marginTop: 10, opacity: 0.7 },
+  input: { marginBottom: 10, backgroundColor: 'white', height: 45 },
 });

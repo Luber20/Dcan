@@ -45,4 +45,11 @@ class User extends Authenticatable
     {
         return $this->hasMany(Pet::class);
     }
+
+    // ✅ NUEVO: Relación con Citas (Agregado para evitar errores al cargar historial)
+    public function appointments()
+    {
+        // Un usuario (cliente) puede tener muchas citas
+        return $this->hasMany(Appointment::class);
+    }
 }

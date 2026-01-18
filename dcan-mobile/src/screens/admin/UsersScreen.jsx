@@ -1,27 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, StyleSheet, ScrollView, RefreshControl } from "react-native";
+import { View, StyleSheet, ScrollView, RefreshControl, Alert } from "react-native";
 import {
-  Card,
-  Title,
-  Paragraph,
-  Button,
-  TextInput,
-  FAB,
-  Switch,
-  Chip,
-  HelperText,
-  Divider,
+  Card, Title, Paragraph, Button, TextInput, FAB, Switch, Chip, HelperText, Divider
 } from "react-native-paper";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { API_URL } from "../../config/api";
 
+// 🔧 AJUSTA ESTAS CLAVES SEGÚN TU BASE DE DATOS
+// Backend suele usar: 'superadmin' (o super_admin), 'clinic_admin', 'veterinarian', 'client'
 const ROLE_OPTIONS = [
-  { key: "superadmin", label: "Super Admin" },
-  { key: "admin", label: "Admin (Dueño)" },
-  { key: "veterinario", label: "Veterinario" },
-  { key: "cliente", label: "Cliente" },
+  { key: "superadmin", dbRole: "superadmin", label: "Super Admin" }, 
+  { key: "admin", dbRole: "clinic_admin", label: "Admin (Dueño)" },
+  { key: "veterinario", dbRole: "veterinarian", label: "Veterinario" },
+  { key: "cliente", dbRole: "client", label: "Cliente" },
 ];
 
 export default function UsersScreen() {
@@ -30,7 +23,6 @@ export default function UsersScreen() {
 
   const [users, setUsers] = useState([]);
   const [clinics, setClinics] = useState([]);
-
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -39,37 +31,27 @@ export default function UsersScreen() {
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
 
-  // form
+  // Formulario
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
-
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState("cliente");
+  const [roleKey, setRoleKey] = useState("cliente"); // Usamos la key del array local
   const [clinicId, setClinicId] = useState(null);
-
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState("");
 
-  const headers = useMemo(
-    () => ({
+  const headers = useMemo(() => ({
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
-    }),
-    [token]
-  );
-
-  const requiresClinic = (r) => r === "admin" || r === "veterinario";
+  }), [token]);
 
   const fetchClinics = async () => {
     try {
       const res = await axios.get(`${API_URL}/admin/clinics`, { headers });
-      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-      setClinics(list);
-    } catch (e) {
-      setClinics([]);
-    }
+      setClinics(Array.isArray(res.data) ? res.data : res.data?.data || []);
+    } catch (e) {}
   };
 
   const fetchUsers = async () => {
@@ -79,41 +61,29 @@ export default function UsersScreen() {
       const res = await axios.get(`${API_URL}/admin/users`, { headers });
       setUsers(Array.isArray(res.data) ? res.data : res.data?.data || []);
     } catch (e) {
-      setError("No se pudo cargar usuarios. Verifica conexión o servidor.");
+      setError("No se pudo cargar usuarios.");
     } finally {
       setLoading(false);
     }
   };
 
-  const loadAll = async () => {
-    await Promise.all([fetchUsers(), fetchClinics()]);
-  };
-
-  useEffect(() => {
-    loadAll();
-  }, []);
-
+  const loadAll = async () => { await Promise.all([fetchUsers(), fetchClinics()]); };
+  useEffect(() => { loadAll(); }, []);
+  
   const onRefresh = async () => {
     setRefreshing(true);
     await loadAll();
     setRefreshing(false);
   };
 
+  // --- LÓGICA DE FORMULARIO ---
   const resetForm = () => {
     setEditing(null);
-    setFullName("");
-    setEmail("");
-    setPhone("");
-    setRole("cliente");
-    setClinicId(null);
-    setPassword("");
-    setFormError("");
+    setFullName(""); setEmail(""); setPhone(""); setRoleKey("cliente");
+    setClinicId(null); setPassword(""); setFormError("");
   };
 
-  const openCreate = () => {
-    resetForm();
-    setOpenForm(true);
-  };
+  const openCreate = () => { resetForm(); setOpenForm(true); };
 
   const openEdit = (u) => {
     setEditing(u);
@@ -121,223 +91,181 @@ export default function UsersScreen() {
     setEmail(u.email || "");
     setPhone(u.phone || "");
 
-    const currentRole =
-      u.role || (Array.isArray(u.roles) && u.roles[0]?.name) || "cliente";
-    setRole(currentRole);
+    // Detectar rol actual del usuario
+    const uRole = u.roles && u.roles.length > 0 ? u.roles[0].name : (u.role || "client");
+    
+    // Mapear el rol de la BD a nuestra key local
+    const foundOption = ROLE_OPTIONS.find(opt => 
+        opt.dbRole === uRole || opt.dbRole === uRole.replace('_', '')
+    );
+    setRoleKey(foundOption ? foundOption.key : "cliente");
 
     setClinicId(u.clinic_id ?? u.clinicId ?? null);
-    setPassword("");
+    setPassword(""); // Vacía para no sobreescribir si no quiere cambiarla
     setFormError("");
     setOpenForm(true);
   };
 
-  // ✅ FAB toggle (lo que te faltaba)
-  const onFabPress = () => {
-    if (openForm) {
-      setOpenForm(false);
-      resetForm();
-      return;
-    }
-    openCreate();
-  };
-
-  const validateForm = () => {
-    if (!fullName.trim()) return "El nombre es obligatorio.";
-    if (!email.trim()) return "El correo es obligatorio.";
-    if (!email.includes("@")) return "Correo inválido.";
-    if (!role) return "Selecciona un rol.";
-
-    if (!editing && !password.trim())
-      return "La contraseña es obligatoria al crear un usuario.";
-
-    if (requiresClinic(role) && !clinicId)
-      return "Selecciona una clínica para este rol.";
-
-    return "";
-  };
+  const requiresClinic = (key) => key === "admin" || key === "veterinario";
 
   const saveUser = async () => {
-    const msg = validateForm();
-    if (msg) return setFormError(msg);
+    if (!fullName.trim() || !email.trim()) return setFormError("Nombre y correo obligatorios.");
+    if (!editing && !password.trim()) return setFormError("Contraseña obligatoria al crear.");
 
     setFormError("");
     try {
+      // Buscar el nombre real del rol para la BD (ej: 'clinic_admin')
+      const selectedOption = ROLE_OPTIONS.find(r => r.key === roleKey);
+      const dbRoleName = selectedOption ? selectedOption.dbRole : "client";
+
       const payload = {
         name: fullName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
-        role,
-        clinic_id: requiresClinic(role) ? clinicId : null,
+        role: dbRoleName,
+        clinic_id: requiresClinic(roleKey) ? clinicId : null,
       };
 
       if (password.trim()) payload.password = password.trim();
 
       if (editing) {
         await axios.put(`${API_URL}/admin/users/${editing.id}`, payload, { headers });
+        Alert.alert("Éxito", "Usuario actualizado.");
       } else {
         await axios.post(`${API_URL}/admin/users`, payload, { headers });
+        Alert.alert("Éxito", "Usuario creado.");
       }
 
       setOpenForm(false);
       resetForm();
       fetchUsers();
     } catch (e) {
-      setFormError("No se pudo guardar el usuario. Revisa validaciones del servidor.");
+      console.log(e);
+      setFormError("Error al guardar. Revisa que el correo no esté duplicado.");
     }
+  };
+
+  // --- ELIMINAR ---
+  const handleDelete = (u) => {
+    Alert.alert(
+      "Eliminar Usuario",
+      `¿Estás seguro de eliminar a ${u.name}? Esta acción no se puede deshacer.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Eliminar", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await axios.delete(`${API_URL}/admin/users/${u.id}`, { headers });
+              Alert.alert("Eliminado", "El usuario ha sido eliminado correctamente.");
+              fetchUsers();
+            } catch (error) {
+              Alert.alert("Error", "No se pudo eliminar el usuario.");
+            }
+          }
+        }
+      ]
+    );
   };
 
   const toggleUser = async (u) => {
-    setError("");
     try {
       await axios.patch(`${API_URL}/admin/users/${u.id}/toggle`, {}, { headers });
       fetchUsers();
-    } catch (e) {
-      setError("No se pudo activar/inactivar el usuario.");
-    }
+    } catch (e) { setError("Error cambiando estado."); }
   };
 
-  const roleLabel = (r) =>
-    ROLE_OPTIONS.find((x) => x.key === r)?.label || r || "—";
-
+  // --- FILTRADO ---
   const filtered = users.filter((u) => {
-    const r = u.role || (Array.isArray(u.roles) && u.roles[0]?.name) || "cliente";
-    const text = `${u?.name ?? ""} ${u?.email ?? ""} ${u?.phone ?? ""} ${r ?? ""}`.toLowerCase();
+    // Normalizar rol del usuario
+    const uRole = u.roles && u.roles.length > 0 ? u.roles[0].name : (u.role || "");
+    
+    // Texto de búsqueda
+    const text = `${u.name} ${u.email} ${uRole}`.toLowerCase();
     const matchQ = text.includes(q.trim().toLowerCase());
-    const matchRole = roleFilter === "all" ? true : r === roleFilter;
+
+    // Filtro por tabs
+    let matchRole = true;
+    if (roleFilter !== "all") {
+        // Buscar qué roles de BD corresponden a la pestaña seleccionada
+        const targetOption = ROLE_OPTIONS.find(opt => opt.key === roleFilter);
+        if (targetOption) {
+            // Comparamos el rol de la BD con el que esperamos (ej: clinic_admin)
+            // Usamos includes por si acaso hay variaciones 'superadmin' vs 'super_admin'
+            matchRole = uRole.includes(targetOption.dbRole) || uRole === targetOption.dbRole;
+            
+            // Fix específico para SuperAdmin si hay inconsistencia de guiones bajos
+            if (roleFilter === 'superadmin' && (uRole === 'super_admin' || uRole === 'superadmin')) matchRole = true;
+        }
+    }
+
     return matchQ && matchRole;
   });
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 110 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
+      <ScrollView contentContainerStyle={{ paddingBottom: 110 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <Title style={[styles.title, { color: theme.colors.primary }]}>Usuarios</Title>
 
-        <Paragraph style={{ textAlign: "center", opacity: 0.75, marginBottom: 8, paddingHorizontal: 16 }}>
-          Administración de acceso: creación de usuarios, roles, activación e
-          (si aplica) asignación a clínicas.
-        </Paragraph>
-
         <View style={styles.topRow}>
-          <Chip icon="account-multiple" style={styles.chip}>
-            Total: {users.length}
-          </Chip>
-          <Button mode="outlined" icon="refresh" onPress={loadAll} disabled={loading}>
-            Actualizar
-          </Button>
+          <Chip icon="account-multiple">Total: {users.length}</Chip>
+          <Button mode="outlined" icon="refresh" onPress={loadAll} disabled={loading}>Actualizar</Button>
         </View>
 
         <View style={{ paddingHorizontal: 16, gap: 10 }}>
-          <TextInput
-            label="Buscar por nombre, correo o teléfono"
-            value={q}
-            onChangeText={setQ}
-            mode="outlined"
-            left={<TextInput.Icon icon="magnify" />}
-          />
-
-          <View style={styles.filterRow}>
+          <TextInput label="Buscar..." value={q} onChangeText={setQ} mode="outlined" left={<TextInput.Icon icon="magnify" />} />
+          
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             <Chip selected={roleFilter === "all"} onPress={() => setRoleFilter("all")}>Todos</Chip>
             <Chip selected={roleFilter === "superadmin"} onPress={() => setRoleFilter("superadmin")}>SuperAdmin</Chip>
-            <Chip selected={roleFilter === "admin"} onPress={() => setRoleFilter("admin")}>Admin</Chip>
-            <Chip selected={roleFilter === "veterinario"} onPress={() => setRoleFilter("veterinario")}>Vet</Chip>
-            <Chip selected={roleFilter === "cliente"} onPress={() => setRoleFilter("cliente")}>Cliente</Chip>
-          </View>
+            <Chip selected={roleFilter === "admin"} onPress={() => setRoleFilter("admin")}>Dueños</Chip>
+            <Chip selected={roleFilter === "veterinario"} onPress={() => setRoleFilter("veterinario")}>Vets</Chip>
+            <Chip selected={roleFilter === "cliente"} onPress={() => setRoleFilter("cliente")}>Clientes</Chip>
+          </ScrollView>
         </View>
 
-        {!!error && (
-          <Paragraph style={{ color: theme.colors.error, textAlign: "center", marginTop: 10 }}>
-            {error}
-          </Paragraph>
-        )}
         {loading && <Paragraph style={{ textAlign: "center", marginTop: 10 }}>Cargando...</Paragraph>}
 
-        {/* FORM */}
+        {/* FORMULARIO */}
         {openForm && (
           <Card style={styles.formCard}>
             <Card.Content>
-              <Title style={{ marginBottom: 10 }}>
-                {editing ? "Editar usuario" : "Nuevo usuario"}
-              </Title>
+              <Title>{editing ? "Editar" : "Nuevo"}</Title>
+              <TextInput label="Nombre" value={fullName} onChangeText={setFullName} mode="outlined" style={styles.input} />
+              <TextInput label="Correo" value={email} onChangeText={setEmail} mode="outlined" style={styles.input} />
+              <TextInput label="Teléfono" value={phone} onChangeText={setPhone} mode="outlined" style={styles.input} />
 
-              <TextInput label="Nombre completo" value={fullName} onChangeText={setFullName} mode="outlined" style={styles.input} />
-              <TextInput label="Correo" value={email} onChangeText={setEmail} mode="outlined" autoCapitalize="none" style={styles.input} />
-              <TextInput label="Teléfono (opcional)" value={phone} onChangeText={setPhone} mode="outlined" style={styles.input} />
-
-              <Divider style={{ marginVertical: 10 }} />
-
-              <Paragraph style={{ marginBottom: 6, opacity: 0.75 }}>Rol</Paragraph>
+              <Paragraph style={{marginTop: 5}}>Rol:</Paragraph>
               <View style={styles.roleGrid}>
                 {ROLE_OPTIONS.map((opt) => (
-                  <Chip
-                    key={opt.key}
-                    selected={role === opt.key}
-                    onPress={() => {
-                      setRole(opt.key);
-                      if (!requiresClinic(opt.key)) setClinicId(null);
-                    }}
-                    style={styles.roleChip}
-                  >
+                  <Chip key={opt.key} selected={roleKey === opt.key} onPress={() => setRoleKey(opt.key)} style={styles.roleChip}>
                     {opt.label}
                   </Chip>
                 ))}
               </View>
 
-              {requiresClinic(role) && (
-                <>
-                  <Paragraph style={{ marginTop: 12, marginBottom: 6, opacity: 0.75 }}>
-                    Clínica asignada
-                  </Paragraph>
-                  <View style={styles.roleGrid}>
-                    {clinics.filter((c) => !!c.is_active).map((c) => (
-                      <Chip
-                        key={c.id}
-                        selected={clinicId === c.id}
-                        onPress={() => setClinicId(c.id)}
-                        style={styles.roleChip}
-                      >
-                        {c.name}
-                      </Chip>
+              {requiresClinic(roleKey) && (
+                <View>
+                   <Paragraph style={{marginTop: 10}}>Clínica:</Paragraph>
+                   <View style={styles.roleGrid}>
+                    {clinics.map((c) => (
+                      <Chip key={c.id} selected={clinicId === c.id} onPress={() => setClinicId(c.id)} style={styles.roleChip}>{c.name}</Chip>
                     ))}
-                  </View>
-
-                  {clinics.length === 0 && (
-                    <HelperText type="info" visible={true}>
-                      No hay clínicas activas disponibles para asignar.
-                    </HelperText>
-                  )}
-                </>
+                   </View>
+                </View>
               )}
 
-              <TextInput
-                label={editing ? "Nueva contraseña (opcional)" : "Contraseña"}
-                value={password}
-                onChangeText={setPassword}
-                mode="outlined"
-                secureTextEntry
-                style={[styles.input, { marginTop: 12 }]}
+              <TextInput 
+                label={editing ? "Nueva Contraseña (Opcional)" : "Contraseña"} 
+                value={password} onChangeText={setPassword} mode="outlined" secureTextEntry style={[styles.input, { marginTop: 15 }]} 
               />
-
-              <HelperText type="error" visible={!!formError}>
-                {formError}
-              </HelperText>
+              
+              {!!formError && <HelperText type="error">{formError}</HelperText>}
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-                <Button mode="contained" onPress={saveUser} style={{ flex: 1 }}>
-                  Guardar
-                </Button>
-                <Button
-                  mode="outlined"
-                  onPress={() => {
-                    setOpenForm(false);
-                    resetForm();
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  Cancelar
-                </Button>
+                <Button mode="contained" onPress={saveUser} style={{ flex: 1 }}>Guardar</Button>
+                <Button mode="outlined" onPress={() => setOpenForm(false)} style={{ flex: 1 }}>Cancelar</Button>
               </View>
             </Card.Content>
           </Card>
@@ -345,57 +273,39 @@ export default function UsersScreen() {
 
         {/* LISTA */}
         {filtered.map((u) => {
-          const r = u.role || (Array.isArray(u.roles) && u.roles[0]?.name) || "cliente";
-          const active = u.is_active ?? u.active ?? true;
+           const uRole = u.roles && u.roles.length > 0 ? u.roles[0].name : (u.role || "client");
+           const active = u.is_active ?? true;
+           const assignedClinic = clinics.find((c) => c.id === u.clinic_id)?.name;
 
-          const assignedClinic =
-            clinics.find((c) => c.id === (u.clinic_id ?? u.clinicId))?.name ||
-            u.clinic?.name ||
-            null;
-
-          return (
+           return (
             <Card key={u.id} style={styles.card}>
               <Card.Content>
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Title style={styles.userName}>{u.name || "—"}</Title>
-                    <Paragraph style={styles.detail}>{u.email || "—"}</Paragraph>
-                    {!!u.phone && <Paragraph style={styles.detail}>{u.phone}</Paragraph>}
-
-                    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                      <Chip icon="account" style={styles.smallChip}>{roleLabel(r)}</Chip>
-                      {assignedClinic && <Chip icon="domain" style={styles.smallChip}>{assignedClinic}</Chip>}
-                    </View>
-                  </View>
-
-                  <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
-                    <Chip icon={active ? "check" : "close"} style={{ marginBottom: 8 }}>
-                      {active ? "Activo" : "Inactivo"}
-                    </Chip>
-                    <Switch value={!!active} onValueChange={() => toggleUser(u)} />
-                  </View>
+                <Title style={{ fontSize: 18 }}>{u.name}</Title>
+                <Paragraph>{u.email} • {u.phone}</Paragraph>
+                <View style={{flexDirection:'row', gap:5, marginTop:5}}>
+                    <Chip style={{height:30}} textStyle={{fontSize:11}}>{uRole}</Chip>
+                    {assignedClinic && <Chip icon="domain" style={{height:30}} textStyle={{fontSize:11}}>{assignedClinic}</Chip>}
                 </View>
 
-                <Button mode="text" onPress={() => openEdit(u)} style={{ marginTop: 6 }}>
-                  Editar
-                </Button>
+                <Divider style={{marginVertical: 10}} />
+                
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems:'center' }}>
+                  <View style={{flexDirection:'row', alignItems:'center'}}>
+                      <Switch value={!!active} onValueChange={() => toggleUser(u)} />
+                      <Paragraph style={{fontSize:12, marginLeft:5}}>{active ? "Activo" : "Bloqueado"}</Paragraph>
+                  </View>
+                  <View style={{flexDirection:'row'}}>
+                      <Button onPress={() => openEdit(u)}>Editar</Button>
+                      <Button textColor="red" onPress={() => handleDelete(u)}>Eliminar</Button>
+                  </View>
+                </View>
               </Card.Content>
             </Card>
-          );
+           );
         })}
-
-        {!loading && filtered.length === 0 && (
-          <Paragraph style={{ textAlign: "center", opacity: 0.7, marginTop: 18 }}>
-            No hay usuarios que coincidan con el filtro/búsqueda.
-          </Paragraph>
-        )}
       </ScrollView>
 
-      <FAB
-        icon={openForm ? "close" : "plus"} // ✅ cambia icono
-        style={styles.fab}
-        onPress={onFabPress}               // ✅ toggle
-      />
+      <FAB icon={openForm ? "close" : "plus"} style={styles.fab} onPress={() => { openForm ? setOpenForm(false) : openCreate() }} />
     </View>
   );
 }
@@ -403,17 +313,12 @@ export default function UsersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   title: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginTop: 16, marginBottom: 10 },
-  topRow: { flexDirection: "row", gap: 10, alignItems: "center", paddingHorizontal: 16, marginBottom: 10, flexWrap: "wrap" },
-  chip: { borderRadius: 999 },
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  card: { marginHorizontal: 16, marginVertical: 8, borderRadius: 16, elevation: 3 },
+  topRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, marginBottom: 10 },
+  filterRow: { gap: 8, paddingBottom: 5 },
+  card: { marginHorizontal: 16, marginVertical: 6, borderRadius: 12, elevation: 2 },
   formCard: { marginHorizontal: 16, marginVertical: 10, borderRadius: 16, elevation: 5 },
-  input: { marginBottom: 12 },
-  row: { flexDirection: "row", gap: 12 },
-  userName: { fontSize: 18 },
-  detail: { opacity: 0.75 },
-  roleGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  roleChip: { borderRadius: 999 },
-  smallChip: { borderRadius: 999 },
-  fab: { position: "absolute", right: 16, bottom: 16 },
+  input: { marginBottom: 10, backgroundColor: 'white' },
+  roleGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop:5 },
+  roleChip: { borderRadius: 8 },
+  fab: { position: "absolute", right: 16, bottom: 16, backgroundColor:'#2E8B57' },
 });
