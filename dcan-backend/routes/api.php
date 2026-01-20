@@ -36,26 +36,50 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-menu', [MenuController::class, 'index']);
     Route::apiResource('pets', PetController::class);
 
-    // Citas
+    // ==========================================
+    // 👥 RUTAS PARA CLIENTES
+    // ==========================================
     Route::get('/appointments/next', [AppointmentController::class, 'nextAppointment']);
     Route::apiResource('appointments', AppointmentController::class);
 
-    // ✅ ACTUALIZAR MI CLÍNICA (Ruta para el Dueño)
-    Route::put('/clinics/{clinic}', [ClinicController::class, 'update']);
+    // ==========================================
+    // 🩺 RUTAS PARA VETERINARIOS
+    // ==========================================
+    Route::middleware(['auth:sanctum', 'role:veterinarian'])->group(function () {
+    // Agenda y Pacientes
+    Route::get('/veterinarian/appointments', [AppointmentController::class, 'getVetAgenda']);
+    Route::get('/veterinarian/patients', [AppointmentController::class, 'getPatients']);
+    
+    // Gestión de Citas y Ficha Médica
+    Route::patch('/appointments/{id}/status', [AppointmentController::class, 'updateStatus']);
+    Route::post('/veterinarian/complete-appointment', [AppointmentController::class, 'completeAppointment']);
+    
+    // Historial específico de una mascota
+    Route::get('/pets/{petId}/history', [AppointmentController::class, 'getPetHistory']);
+});
 
-    // Gestión de Personal y Clientes (Para Admin Clínica)
-    Route::post('/register-veterinarian', [RegisterController::class, 'registerVeterinarian']);
-    Route::get('/clinic-clients', [ClinicController::class, 'getClients']);
-    Route::post('/clinic-clients', [ClinicController::class, 'createClient']);
-    Route::delete('/clinic-clients/{user}', [ClinicController::class, 'deleteClient']);
-    Route::patch('/clinic-clients/{user}/toggle', [ClinicController::class, 'toggleClient']);
+    // ==========================================
+    // 🏥 RUTAS PARA ADMIN DE CLÍNICA
+    // ==========================================
+    Route::middleware(['role:clinic_admin|admin'])->group(function () {
+        // ✅ Actualizar mi clínica
+        Route::put('/clinics/{clinic}', [ClinicController::class, 'update']);
 
-    Route::get('/clinic-veterinarians', [ClinicController::class, 'getVeterinarians']);
-    Route::put('/clinic-veterinarians/{user}', [ClinicController::class, 'updateVeterinarian']);
-    Route::delete('/clinic-veterinarians/{user}', [ClinicController::class, 'deleteVeterinarian']);
+        // Gestión de Personal y Clientes
+        Route::post('/register-veterinarian', [RegisterController::class, 'registerVeterinarian']);
+        Route::get('/clinic-clients', [ClinicController::class, 'getClients']);
+        Route::post('/clinic-clients', [ClinicController::class, 'createClient']);
+        Route::delete('/clinic-clients/{user}', [ClinicController::class, 'deleteClient']);
+        Route::patch('/clinic-clients/{user}/toggle', [ClinicController::class, 'toggleClient']);
 
-    Route::get('/clinic-appointments', [AppointmentController::class, 'getClinicAppointments']);
+        Route::get('/clinic-veterinarians', [ClinicController::class, 'getVeterinarians']);
+        Route::put('/clinic-veterinarians/{user}', [ClinicController::class, 'updateVeterinarian']);
+        Route::delete('/clinic-veterinarians/{user}', [ClinicController::class, 'deleteVeterinarian']);
 
+        Route::get('/clinic-appointments', [AppointmentController::class, 'getClinicAppointments']);
+    });
+
+    // Veterinarios disponibles (Compartido entre Admin y Clientes)
     Route::get('/veterinarians', function (Request $request) {
         $clinicId = $request->user()->clinic_id;
         $vets = \App\Models\User::role('veterinarian')->where('clinic_id', $clinicId)->get();
@@ -70,7 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // 🏥 Gestión Clínicas
         Route::get('/admin/clinics', [ClinicController::class, 'indexAdmin']); 
         Route::post('/admin/clinics', [ClinicController::class, 'store']);
-        Route::put('/admin/clinics/{clinic}', [ClinicController::class, 'update']); // Editar info clínica
+        Route::put('/admin/clinics/{clinic}', [ClinicController::class, 'update']);
         Route::patch('/admin/clinics/{clinic}/toggle', [ClinicController::class, 'toggle']);
         
         // 📊 Dashboard Stats
@@ -84,24 +108,17 @@ Route::middleware('auth:sanctum')->group(function () {
              ];
         });
         
-        // 👥 Gestión Usuarios (CORREGIDO)
+        // 👥 Gestión Usuarios
         Route::get('/admin/users', function () {
              return \App\Models\User::with('roles', 'clinic')->orderBy('id', 'desc')->get();
         });
         
-        // Crear
-        Route::post('/admin/users', [RegisterController::class, 'registerClient']); // Puedes mejorar esto luego para crear admin/vets directos
-        
-        // ✅ Editar (Usar updateGlobalUser para poder cambiar password y rol)
+        Route::post('/admin/users', [RegisterController::class, 'registerClient']);
         Route::put('/admin/users/{user}', [ClinicController::class, 'updateGlobalUser']);
-        
-        // ✅ Eliminar (Usar deleteGlobalUser)
         Route::delete('/admin/users/{user}', [ClinicController::class, 'deleteGlobalUser']);
+        Route::patch('/admin/users/{user}/toggle', [ClinicController::class, 'toggleClient']);
         
-        // Bloquear/Activar
-        Route::patch('/admin/users/{user}/toggle', [ClinicController::class, 'toggleClient']); // Reutilizamos toggleClient que ya hace soft delete/restore
-        
-        // 📩 Solicitudes (Opcional)
+        // 📩 Solicitudes
         Route::get('/admin/clinic-requests', function () {
              return \App\Models\Clinic::where('is_active', false)->get();
         });
@@ -110,5 +127,6 @@ Route::middleware('auth:sanctum')->group(function () {
             $clinic->delete();
             return response()->json(['message' => 'Solicitud rechazada']);
         });
+        
     });
 });

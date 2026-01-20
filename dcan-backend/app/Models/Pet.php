@@ -10,13 +10,19 @@ class Pet extends Model
     use HasFactory;
 
     protected $fillable = [
-    'name', 'species', 'breed', 'gender', 
-    'age', 'weight', 'vaccines', 'photo_url', // 👈 Agregamos los nuevos
-    'user_id', 'clinic_id'
+        'name', 'species', 'breed', 'gender', 
+        'age', 'weight', 'vaccines', 'photo_url', 
+        'user_id', 'clinic_id'
     ];
 
-    // Relación inversa (opcional, buena práctica)
+    // Relación: La mascota pertenece a un dueño (Usuario)
     public function user() {
         return $this->belongsTo(User::class);
+    }
+
+    // ✅ NUEVA RELACIÓN: La mascota tiene muchas citas
+    // Esto es lo que arregla el Error 500
+    public function appointments() {
+        return $this->hasMany(Appointment::class);
     }
 }

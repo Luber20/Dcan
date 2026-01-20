@@ -14,6 +14,7 @@ import ClinicDetailsScreen from "./src/screens/public/ClinicDetailsScreen";
 import ClientTabs from "./src/navigation/ClientTabs";
 import AdminTabs from "./src/navigation/AdminTabs";
 import SuperAdminTabs from "./src/navigation/SuperAdminTabs";
+import VetTabs from "./src/navigation/VetTabs";
 
 const Stack = createNativeStackNavigator();
 
@@ -54,16 +55,20 @@ function AppContent() {
                 <Stack.Screen name="ClinicDetails" component={ClinicDetailsScreen} />
              </Stack.Group>
           )}
+          {/* Esta es la puerta para el veterinario */}
+{(role === "veterinarian" || role === "veterinario") && (
+  <Stack.Screen name="VetDashboard" component={VetTabs} />
+)}
 
           {/* Fallback por si el rol falla */}
-          {(!role || !["superadmin","super_admin","clinic_admin","admin","cliente","client"].includes(role)) && (
-             <Stack.Screen name="ErrorRole" component={() => (
-                <View style={{flex:1,justifyContent:'center',alignItems:'center'}}>
-                    <Text>Error de Rol o Sesión</Text>
-                    <Button title="Cerrar Sesión" onPress={logout}/>
-                </View>
-             )} />
-          )}
+{(!role || !["superadmin","super_admin","clinic_admin","admin","cliente","client", "veterinarian", "veterinario"].includes(role)) && (
+    <Stack.Screen name="ErrorRole" component={() => (
+       <View style={{flex:1,justifyContent:'center',alignItems:'center'}}>
+           <Text>Error de Rol o Sesión</Text>
+           <Button title="Cerrar Sesión" onPress={logout}/>
+       </View>
+    )} />
+)}
         </Stack.Group>
       )}
     </Stack.Navigator>

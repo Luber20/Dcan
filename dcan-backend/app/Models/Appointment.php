@@ -18,7 +18,9 @@ class Appointment extends Model
         'time', 
         'status', 
         'type', 
-        'notes'
+        'notes',
+        'diagnosis', 
+        'weight'
     ];
 
     // Relación: La cita pertenece a una mascota

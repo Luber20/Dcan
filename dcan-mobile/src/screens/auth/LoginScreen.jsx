@@ -3,6 +3,7 @@ import { View, StyleSheet, Image, KeyboardAvoidingView, Platform, Alert } from "
 import { TextInput, Button, Title, Card, Paragraph } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
 import { useRoute } from "@react-navigation/native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen({ navigation }) {
   const route = useRoute();
@@ -22,73 +23,57 @@ export default function LoginScreen({ navigation }) {
     }
 
     setLoading(true);
-    const result = await login(email.trim().toLowerCase(), password);
-    setLoading(false);
-
-    if (result.success) {
-      const user = result.user;
-      const roles = user.roles || [];
+    
+    try {
+      // 1. Ejecutar login desde el AuthContext (esto guarda el token en SecureStore)
+      const result = await login(email.trim().toLowerCase(), password);
       
-      // --- DETECCIÓN DE ROLES ---
-      const isSuperAdmin = roles.some(r => r.name === 'superadmin' || r.name === 'super_admin');
-      const isClinicAdmin = roles.some(r => r.name === 'admin' || r.name === 'clinic_admin');
-      const isVet = roles.some(r => r.name === 'veterinario' || r.name === 'veterinarian');
-      
-      // 🛡️ VERIFICACIÓN DE SEGURIDAD 
-      // (El SuperAdmin pasa siempre. Los demás deben coincidir con la clínica seleccionada)
-      if (selectedClinic && !isSuperAdmin) {
-          const userClinicId = user.clinic_id; 
-          const targetClinicId = selectedClinic.id;
+      if (result.success) {
+        const user = result.user;
+        const roles = user.roles || [];
+        
+        // --- Identificar Roles ---
+        const isSuperAdmin = roles.some(r => r.name === 'superadmin' || r.name === 'super_admin');
+        const isVet = roles.some(r => r.name === 'veterinario' || r.name === 'veterinarian');
+        const isClinicAdmin = roles.some(r => r.name === 'admin' || r.name === 'clinic_admin');
+        const isClient = !isSuperAdmin && !isVet && !isClinicAdmin; // Si no es staff, es cliente
 
-          if (String(userClinicId) !== String(targetClinicId)) {
-              await logout(); 
-              Alert.alert(
-                  "Acceso Denegado 🚫", 
-                  `Tu usuario pertenece a otra veterinaria.\nNo puedes entrar a "${selectedClinic.name}" con esta cuenta.`
-              );
-              return; 
-          }
+        // 2. Verificación de Seguridad por Clínica
+        // SOLO aplicamos esta restricción a Veterinaros y Admins de clínica.
+        // Los Clientes y SuperAdmins pueden entrar libremente.
+        if (selectedClinic && (isVet || isClinicAdmin)) {
+            const userClinicId = Number(user.clinic_id); 
+            const targetClinicId = Number(selectedClinic.id);
+
+            console.log(`Validando Staff: Clínica User ${userClinicId}, Clínica Destino ${targetClinicId}`);
+
+            if (userClinicId !== targetClinicId) {
+                await logout(); 
+                setLoading(false);
+                Alert.alert(
+                    "Acceso Denegado 🚫", 
+                    "Este panel de veterinaria no corresponde a tu cuenta de staff."
+                );
+                return; 
+            }
+        }
+
+        // ✅ LOGIN EXITOSO
+        // No forzamos navegación; dejamos que el AuthContext actualice el 'user'
+        // y App.js nos redirija según el rol detectado.
+        console.log("✅ Login exitoso. Rol detectado:", isClient ? "Cliente" : "Staff");
+
+      } else {
+        setLoading(false);
+        Alert.alert("Error", result.message || "Credenciales incorrectas.");
       }
-      
-      // ✅ REDIRECCIÓN INTELIGENTE SEGÚN EL ROL
-      if (selectedClinic) {
-          setTimeout(() => {
-              try {
-                  let targetRoute = 'ClientDashboard'; // Por defecto: Cliente
-                  let targetParams = { screen: "Citas", params: { screen: "Agendar" } }; // Por defecto: Agendar
-
-                  if (isSuperAdmin) {
-                      // 1. Super Admin
-                      targetRoute = 'SuperAdminDashboard';
-                      targetParams = undefined;
-                  } else if (isClinicAdmin) {
-                      // 2. Dueño de Clínica
-                      targetRoute = 'AdminDashboard';
-                      targetParams = undefined;
-                  } else if (isVet) {
-                      // 3. Veterinario (Agregado para que no falle)
-                      targetRoute = 'VetDashboard';
-                      targetParams = undefined; 
-                  }
-                  // 4. Si no es ninguno de los anteriores, se queda como ClientDashboard (Cliente)
-
-                  navigation.reset({
-                      index: 0,
-                      routes: [{ 
-                          name: targetRoute,
-                          params: targetParams
-                      }],
-                  });
-              } catch (e) {
-                  console.log("Error navegando:", e);
-              }
-          }, 100);
-      }
-
-    } else {
-      Alert.alert("Error", result.message || "Credenciales incorrectas.");
+    } catch (error) {
+      setLoading(false);
+      console.log("Error en handleLogin:", error);
+      Alert.alert("Error", "Ocurrió un fallo inesperado en el inicio de sesión.");
     }
   };
+  
 
   return (
     <KeyboardAvoidingView
