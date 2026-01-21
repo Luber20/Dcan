@@ -10,33 +10,48 @@ use Illuminate\Support\Facades\Auth;
 class AvailabilityController extends Controller
 {
     /**
-     * Carga la disponibilidad para el usuario autenticado (Veterinario/Staff)
+     * Carga la disponibilidad. Si no existe, devuelve defaults.
      */
     public function index()
     {
         try {
             $userId = Auth::id();
             
-            // Obtenemos todos los registros de este usuario
-            $availability = Availability::where('user_id', $userId)->get();
+            // Obtenemos los registros de la BD y los organizamos por día (keyBy)
+            $availability = Availability::where('user_id', $userId)->get()->keyBy('day');
 
-            if ($availability->isEmpty()) {
-                return response()->json(['dias' => null]);
+            // Lista de días que la App espera recibir SÍ o SÍ
+            $diasSemana = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+            $response = [];
+
+            foreach ($diasSemana as $dia) {
+                // CASO A: Ya existe configuración en la BD
+                if (isset($availability[$dia])) {
+                    $item = $availability[$dia];
+                    $response[$dia] = [
+                        'activo'          => (bool)$item->is_active,
+                        'inicio'          => substr($item->start_time, 0, 5),
+                        'fin'             => substr($item->end_time, 0, 5),
+                        'almuerzo_inicio' => substr($item->lunch_start, 0, 5),
+                        'almuerzo_fin'    => substr($item->lunch_end, 0, 5),
+                    ];
+                } 
+                // CASO B: Usuario nuevo (No tiene registro), enviamos DEFAULT
+                else {
+                    // Por defecto activamos Lunes a Viernes
+                    $esLaborable = !in_array($dia, ['Sabado', 'Domingo']);
+                    
+                    $response[$dia] = [
+                        'activo'          => $esLaborable,
+                        'inicio'          => '09:00',
+                        'fin'             => '18:00',
+                        'almuerzo_inicio' => '12:00',
+                        'almuerzo_fin'    => '13:00',
+                    ];
+                }
             }
 
-            // Transformamos el formato de la base de datos al formato del JSON de React Native
-            $formatoFrontend = [];
-            foreach ($availability as $item) {
-                $formatoFrontend[$item->day] = [
-                    'activo'          => (bool)$item->is_active,
-                    'inicio'          => substr($item->start_time, 0, 5), // '09:00:00' -> '09:00'
-                    'fin'             => substr($item->end_time, 0, 5),
-                    'almuerzo_inicio' => substr($item->lunch_start, 0, 5),
-                    'almuerzo_fin'    => substr($item->lunch_end, 0, 5),
-                ];
-            }
-
-            return response()->json(['dias' => $formatoFrontend]);
+            return response()->json(['dias' => $response]);
 
         } catch (\Exception $e) {
             Log::error("Error al obtener disponibilidad: " . $e->getMessage());
@@ -47,7 +62,7 @@ class AvailabilityController extends Controller
     public function store(Request $request)
     {
         try {
-            $userId = auth()->id(); 
+            $userId = Auth::id(); 
             $dias = $request->input('dias');
 
             if (!$dias) {
@@ -71,7 +86,7 @@ class AvailabilityController extends Controller
         } catch (\Exception $e) {
             Log::error("Error en Availability: " . $e->getMessage());
             return response()->json([
-                'message' => 'Error en el servidor',
+                'message' => 'Error en el servidor', 
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -79,6 +94,7 @@ class AvailabilityController extends Controller
 
     public function getPublicAvailability($id)
     {
+        // Esta función es para que los CLIENTES vean el horario
         $availability = Availability::where('user_id', $id)
             ->where('is_active', true)
             ->get()

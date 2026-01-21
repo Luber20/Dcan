@@ -9,14 +9,19 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up()
-{
-    Schema::table('appointments', function (Blueprint $table) {
-        // Añadimos las columnas que faltan
-        $table->text('diagnosis')->nullable();
-        $table->string('weight')->nullable();
-    });
-}
+    public function up()
+    {
+        Schema::table('appointments', function (Blueprint $table) {
+            // VERIFICACIÓN: Solo agregamos si no existen
+            if (!Schema::hasColumn('appointments', 'diagnosis')) {
+                $table->text('diagnosis')->nullable();
+            }
+            
+            if (!Schema::hasColumn('appointments', 'weight')) {
+                $table->string('weight')->nullable();
+            }
+        });
+    }
 
     /**
      * Reverse the migrations.
@@ -24,7 +29,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('appointments', function (Blueprint $table) {
-            //
+            // No borramos nada para no romper las otras migraciones
         });
     }
 };

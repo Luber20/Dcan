@@ -12,9 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('appointments', function (Blueprint $table) {
-    $table->text('diagnosis')->nullable()->after('status');
-    $table->string('weight')->nullable()->after('diagnosis');
-});
+            
+            // VERIFICACIÓN DE SEGURIDAD:
+            // Preguntamos: "¿Ya existe la columna 'diagnosis'?"
+            // Si NO existe (!), entonces la creamos.
+            if (!Schema::hasColumn('appointments', 'diagnosis')) {
+                $table->text('diagnosis')->nullable()->after('status');
+            }
+
+            // Lo mismo para el peso
+            if (!Schema::hasColumn('appointments', 'weight')) {
+                $table->string('weight')->nullable()->after('diagnosis');
+            }
+        });
     }
 
     /**
@@ -23,7 +33,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('appointments', function (Blueprint $table) {
-            //
+            // No eliminamos nada aquí para evitar conflictos con la otra migración
+            // que también maneja estas columnas.
         });
     }
 };
