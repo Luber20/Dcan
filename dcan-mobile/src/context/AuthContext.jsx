@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { API_URL } from "../config/api";
@@ -11,18 +11,19 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Usamos una referencia para evitar bucles de logout
+  const isLoggingOut = useRef(false);
 
-  const updateUser = (updatedUser) => {
-    setUser(prev => ({ ...prev, ...updatedUser }));
-  };
-
-  // ✅ INTERCEPTOR: Si el backend dice "401 Unauthenticated", nos salimos a la fuerza.
+  // ✅ INTERCEPTOR MEJORADO: Evita el bucle infinito
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       response => response,
       async (error) => {
-        if (error.response?.status === 401) {
-          console.log("⚠️ Sesión expirada (401). Cerrando sesión...");
+        // Si es 401 Y no nos estamos saliendo ya...
+        if (error.response?.status === 401 && !isLoggingOut.current) {
+          console.log("⚠️ Sesión expirada (401). Cerrando sesión ordenadamente...");
+          isLoggingOut.current = true; // Bloqueamos futuros intentos
           await logout();
         }
         return Promise.reject(error);
@@ -40,35 +41,41 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedToken = await SecureStore.getItemAsync(TOKEN_KEY);
       if (storedToken) {
+        // Configuramos axios ANTES de llamar a la API
         setToken(storedToken);
         axios.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
         
         try {
             const response = await axios.get(`${API_URL}/me`);
-            if (response.data.user) {
-                setUser({ ...response.data.user, clinic_id: response.data.clinic_id });
-            } else {
-                setUser(response.data);
-            }
+            // Guardamos usuario completo
+            setUser(response.data.user || response.data);
         } catch (e) {
-            // Si falla /me, es probable que el token no sirva.
-            console.log("Error validando token:", e.message);
+            console.log("Token inválido al inicio:", e.message);
             await logout(); 
         }
       }
     } catch (error) {
        await logout();
     } finally {
-      setLoading(false);
+       setLoading(false);
     }
   };
 
-  const setSessionData = async (token, userData, clinic_id) => {
-    if(!token) return;
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-    setToken(token);
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    setUser({ ...userData, clinic_id });
+  const setSessionData = async (newToken, userData, clinic_id) => {
+    if(!newToken) return;
+    try {
+        await SecureStore.setItemAsync(TOKEN_KEY, newToken);
+        setToken(newToken);
+        
+        // Actualizamos headers globales INMEDIATAMENTE
+        axios.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+        
+        // Actualizamos estado de usuario
+        setUser({ ...userData, clinic_id });
+        isLoggingOut.current = false; // Reset flag
+    } catch (e) {
+        console.log("Error guardando sesión:", e);
+    }
   };
 
   const login = async (email, password) => {
@@ -94,11 +101,21 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try { await axios.post(`${API_URL}/logout`); } catch (e) {}
+    try { 
+        // Intentamos avisar al backend, pero si falla no importa
+        await axios.post(`${API_URL}/logout`); 
+    } catch (e) {}
+    
+    // Limpieza local
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     delete axios.defaults.headers.common["Authorization"];
     setToken(null);
-    setUser(null); // Esto fuerza a App.js a cambiar a Pantalla Pública
+    setUser(null);
+    isLoggingOut.current = false;
+  };
+
+  const updateUser = (updatedUser) => {
+    setUser(prev => ({ ...prev, ...updatedUser }));
   };
 
   return (

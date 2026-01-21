@@ -6,19 +6,28 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles; // ✅ Vital para el menú dinámico
+use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\SoftDeletes;
+// Importamos los modelos relacionados para evitar errores
+use App\Models\Clinic;
+use App\Models\Pet;
+use App\Models\Appointment;
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles, SoftDeletes;
 
+    /**
+     * Los atributos que se pueden asignar masivamente.
+     * ¡clinic_id DEBE estar aquí para que funcione el registro!
+     */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'clinic_id',
+        'clinic_id', // <--- IMPORTANTE
         'phone',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -26,30 +35,24 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
-    }
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+    ];
 
-    // Relación con la clínica
+    // Relaciones
     public function clinic()
     {
         return $this->belongsTo(Clinic::class);
     }
 
-    // Relación con mascotas
     public function pets()
     {
         return $this->hasMany(Pet::class);
     }
 
-    // ✅ NUEVO: Relación con Citas (Agregado para evitar errores al cargar historial)
     public function appointments()
     {
-        // Un usuario (cliente) puede tener muchas citas
         return $this->hasMany(Appointment::class);
     }
 }
