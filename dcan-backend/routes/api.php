@@ -20,6 +20,9 @@ Route::post('/register-client', [RegisterController::class, 'registerClient']);
 Route::get('/clinics', [ClinicController::class, 'index']);
 Route::get('/clinics/{clinic}', [ClinicController::class, 'show']);
 
+// Ruta para que el cliente consulte el horario de un veterinario
+Route::get('/veterinarians/{id}/availability', [App\Http\Controllers\AvailabilityController::class, 'getPublicAvailability']);
+
 // ==========================================
 // 🔐 RUTAS PROTEGIDAS (Sanctum)
 // ==========================================
@@ -43,10 +46,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('appointments', AppointmentController::class);
 
     // ==========================================
-    // 🩺 RUTAS PARA VETERINARIOS
-    // ==========================================
-    Route::middleware(['auth:sanctum', 'role:veterinarian'])->group(function () {
-    // Agenda y Pacientes
+// 🩺 RUTAS PARA VETERINARIOS
+// ==========================================
+Route::middleware(['auth:sanctum', 'role:veterinarian|staff'])->group(function () {
+    Route::post('/veterinarian/update-status/{id}', [AppointmentController::class, 'updateStatus']);
+// Agenda y Pacientes
     Route::get('/veterinarian/appointments', [AppointmentController::class, 'getVetAgenda']);
     Route::get('/veterinarian/patients', [AppointmentController::class, 'getPatients']);
     
@@ -56,8 +60,14 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Historial específico de una mascota
     Route::get('/pets/{petId}/history', [AppointmentController::class, 'getPetHistory']);
-});
 
+    // --- NUEVAS RUTAS DE DISPONIBILIDAD ---
+    // Esta es la que usa la App para guardar:
+    Route::post('/veterinarian/availability', [App\Http\Controllers\AvailabilityController::class, 'store']);
+    // Esta es para que la App cargue lo que ya guardaste:
+    Route::get('/veterinarian/availability', [App\Http\Controllers\AvailabilityController::class, 'index']);
+    Route::get('/appointments/available-slots', [AppointmentController::class, 'getAvailableSlots']);
+   });
     // ==========================================
     // 🏥 RUTAS PARA ADMIN DE CLÍNICA
     // ==========================================

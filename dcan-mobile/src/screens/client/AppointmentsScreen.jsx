@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { View, StyleSheet, ScrollView, RefreshControl, Alert } from "react-native";
-import { Card, Title, Text, Button, Avatar, ActivityIndicator, Chip, Divider } from "react-native-paper";
+// Se agrega Portal y Modal a las importaciones
+import { Card, Title, Text, Button, Avatar, ActivityIndicator, Chip, Divider, Portal, Modal } from "react-native-paper";
 import { useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 import { API_URL } from "../../config/api";
@@ -14,6 +15,10 @@ export default function AppointmentsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // NUEVOS ESTADOS PARA LA FICHA
+  const [visible, setVisible] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+
   const loadAppointments = async () => {
     try {
       const response = await axios.get(`${API_URL}/appointments`);
@@ -26,22 +31,27 @@ export default function AppointmentsScreen({ navigation }) {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadAppointments();
-    }, [])
-  );
+  useFocusEffect(useCallback(() => { loadAppointments(); }, []));
 
   const onRefresh = () => {
     setRefreshing(true);
     loadAppointments();
   };
 
+  const showFicha = (item) => {
+    setSelectedAppointment(item);
+    setVisible(true);
+  };
+
+  const hideFicha = () => {
+    setVisible(false);
+    setSelectedAppointment(null);
+  };
+
   const safeFormat = (dateStr, timeStr, formatStr) => {
-    if (!dateStr || !timeStr) return "Fecha no disponible";
+    if (!dateStr) return "Fecha no disponible";
     try {
-      const dateTimeStr = `${dateStr.replace(/-/g, '/')} ${timeStr}`;
-      const dateObj = new Date(dateTimeStr);
+      const dateObj = new Date(dateStr.replace(/-/g, '/'));
       if (isNaN(dateObj.getTime())) return dateStr;
       return format(dateObj, formatStr, { locale: es });
     } catch (e) {
@@ -49,37 +59,10 @@ export default function AppointmentsScreen({ navigation }) {
     }
   };
 
-  const handleDelete = (id) => {
-    Alert.alert(
-      "Eliminar Registro",
-      "¿Estás seguro de eliminar esta cita permanentemente?",
-      [
-        { text: "No", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await axios.delete(`${API_URL}/appointments/${id}`);
-              Alert.alert("Eliminado", "La cita ha sido borrada.");
-              loadAppointments();
-            } catch (error) {
-              Alert.alert("Error", "No se pudo eliminar la cita.");
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleEdit = (appointment) => {
-    // Navegamos a Schedule pasándole los datos de la cita
-    navigation.navigate("Agendar", { editData: appointment });
-  };
-
   const getStatusColor = (status) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'confirmed': return '#4CAF50';
+      case 'completed': return '#2E8B57';
       case 'cancelled': return '#F44336';
       default: return '#FF9800';
     }
@@ -101,76 +84,116 @@ export default function AppointmentsScreen({ navigation }) {
           <View style={styles.emptyContainer}>
             <Avatar.Icon size={70} icon="calendar-blank" style={{ backgroundColor: '#f5f5f5' }} color="#ccc" />
             <Text style={styles.emptyText}>Aún no tienes citas.</Text>
-            <Button mode="contained" onPress={() => navigation.navigate("Agendar")}>
-              Agendar una cita
-            </Button>
           </View>
         ) : (
-          appointments.map((item) => (
-            <Card key={item.id} style={styles.card}>
-              <Card.Content>
-                <View style={styles.row}>
-                  {item.pet?.photo_url ? (
-                    <Avatar.Image size={50} source={{ uri: item.pet.photo_url }} />
-                  ) : (
-                    <Avatar.Text size={50} label={item.pet?.name?.substring(0,2).toUpperCase()} style={{backgroundColor: theme.colors.primary}} />
+          appointments.map((item) => {
+            const esCancelada = item.status === 'cancelled';
+            const esCompletada = item.status === 'completed';
+
+            return (
+              <Card key={item.id} style={[styles.card, esCancelada && styles.cardInasistencia]}>
+                <Card.Content>
+                  <View style={styles.row}>
+                    <Avatar.Text 
+                      size={50} 
+                      label={item.pet?.name?.substring(0,2).toUpperCase() || "PT"} 
+                      style={{backgroundColor: theme.colors.primary}} 
+                    />
+                    <View style={{ marginLeft: 15, flex: 1 }}>
+                      <Title style={{ fontSize: 18 }}>{item.pet?.name}</Title>
+                      <Text style={{ color: theme.colors.primary, fontWeight: 'bold' }}>{item.type}</Text>
+                    </View>
+                    <Chip style={{ backgroundColor: getStatusColor(item.status), height: 28 }}>
+                      <Text style={{color: '#fff', fontSize: 10, fontWeight: 'bold'}}>
+                        {esCancelada ? 'NO ASISTIÓ' : item.status?.toUpperCase()}
+                      </Text>
+                    </Chip>
+                  </View>
+
+                  <Divider style={{ marginVertical: 12 }} />
+
+                  <View style={styles.infoRow}>
+                    <Avatar.Icon size={20} icon="calendar-month" style={{ backgroundColor: 'transparent' }} color="#555" />
+                    <Text style={styles.infoText}>{safeFormat(item.date, null, "EEEE d 'de' MMMM, yyyy")}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Avatar.Icon size={20} icon="clock-time-four-outline" style={{ backgroundColor: 'transparent' }} color="#555" />
+                    <Text style={styles.infoText}>
+                      Hora: {item.time ? item.time.substring(0, 5) : "Pendiente"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Avatar.Icon size={20} icon="doctor" style={{ backgroundColor: 'transparent' }} color="#555" />
+                    <Text style={styles.infoText}>Veterinario: {item.veterinarian?.name || "No asignado"}</Text>
+                  </View>
+
+                  {esCancelada && (
+                    <View style={styles.inasistenciaBox}>
+                      <Text style={styles.inasistenciaText}>⚠️ Marcada como inasistencia</Text>
+                    </View>
                   )}
-                  <View style={{ marginLeft: 15, flex: 1 }}>
-                    <Title style={{ fontSize: 18 }}>{item.pet?.name}</Title>
-                    <Text style={{ color: theme.colors.primary, fontWeight: 'bold' }}>{item.type}</Text>
-                  </View>
-                  <Chip style={{ backgroundColor: getStatusColor(item.status), height: 28 }}>
-                    <Text style={{color: '#fff', fontSize: 10, fontWeight: 'bold'}}>{item.status.toUpperCase()}</Text>
-                  </Chip>
-                </View>
 
-                <Divider style={{ marginVertical: 12 }} />
-
-                <View style={styles.infoRow}>
-                  <Avatar.Icon size={20} icon="calendar-month" style={{ backgroundColor: 'transparent' }} color="#555" />
-                  <Text style={styles.infoText}>{safeFormat(item.date, item.time, "EEEE d 'de' MMMM, yyyy")}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Avatar.Icon size={20} icon="clock-time-four-outline" style={{ backgroundColor: 'transparent' }} color="#555" />
-                  <Text style={styles.infoText}>{safeFormat(item.date, item.time, "hh:mm a")}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Avatar.Icon size={20} icon="doctor" style={{ backgroundColor: 'transparent' }} color="#555" />
-                  <Text style={styles.infoText}>Veterinario: {item.veterinarian?.name || "No asignado"}</Text>
-                </View>
-
-                {item.notes && (
-                  <View style={styles.notesBox}>
-                    <Text style={styles.notesLabel}>Notas:</Text>
-                    <Text style={styles.notesContent}>{item.notes}</Text>
-                  </View>
-                )}
-              </Card.Content>
-
-              <Card.Actions style={styles.actions}>
-                <Button 
-                    mode="outlined"
-                    onPress={() => handleEdit(item)}
-                    style={{borderColor: theme.colors.primary}}
-                    textColor={theme.colors.primary}
-                >
-                  Editar
-                </Button>
-                <Button 
-                    mode="contained"
-                    onPress={() => handleDelete(item.id)}
-                    style={{backgroundColor: '#F44336'}}
-                >
-                  Eliminar
-                </Button>
-              </Card.Actions>
-            </Card>
-          ))
+                  {/* BOTÓN PARA VER FICHA MÉDICA SI ESTÁ COMPLETADA */}
+                  {esCompletada && (
+                    <Button 
+                      mode="contained-tonal" 
+                      icon="file-document-outline"
+                      onPress={() => showFicha(item)}
+                      style={{ marginTop: 10, backgroundColor: '#E8F5E9' }}
+                      labelStyle={{ color: '#2E8B57', fontSize: 12 }}
+                    >
+                      Ver Resultados Médicos
+                    </Button>
+                  )}
+                </Card.Content>
+              </Card>
+            );
+          })
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* MODAL DE LA FICHA MÉDICA PARA EL CLIENTE */}
+      <Portal>
+        <Modal visible={visible} onDismiss={hideFicha} contentContainerStyle={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Title style={{ color: '#fff' }}>Ficha de la Cita</Title>
+            <Text style={{ color: '#fff', opacity: 0.8 }}>{selectedAppointment?.pet?.name}</Text>
+          </View>
+          <ScrollView style={{ padding: 20 }}>
+            <Text style={styles.modalLabel}>🩺 DIAGNÓSTICO:</Text>
+            <Text style={styles.modalText}>{selectedAppointment?.diagnosis || "No hay diagnóstico registrado."}</Text>
+            
+            <Divider style={styles.modalDivider} />
+            
+            <Text style={styles.modalLabel}>💊 TRATAMIENTO / RECETA:</Text>
+            <Text style={styles.modalText}>{selectedAppointment?.treatment || "No hay tratamiento registrado."}</Text>
+
+            <Divider style={styles.modalDivider} />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <View>
+                <Text style={styles.modalLabel}>⚖️ PESO:</Text>
+                <Text style={styles.modalText}>{selectedAppointment?.weight || "--"} kg</Text>
+              </View>
+              <View>
+                <Text style={styles.modalLabel}>🌡️ TEMP:</Text>
+                <Text style={styles.modalText}>{selectedAppointment?.temperature || "--"} °C</Text>
+              </View>
+            </View>
+
+            <Button 
+              mode="contained" 
+              onPress={hideFicha} 
+              style={{ marginTop: 20, marginBottom: 10, backgroundColor: theme.colors.primary }}
+            >
+              Cerrar
+            </Button>
+          </ScrollView>
+        </Modal>
+      </Portal>
     </View>
   );
 }
@@ -180,13 +203,19 @@ const styles = StyleSheet.create({
   header: { paddingVertical: 30, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, alignItems: 'center', elevation: 4 },
   scroll: { padding: 15 },
   card: { marginBottom: 20, borderRadius: 20, elevation: 3, backgroundColor: '#fff', overflow: 'hidden' },
+  cardInasistencia: { borderLeftWidth: 6, borderLeftColor: '#F44336' },
   row: { flexDirection: 'row', alignItems: 'center' },
   infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   infoText: { marginLeft: 10, color: '#444', fontSize: 14, textTransform: 'capitalize' },
-  notesBox: { marginTop: 10, padding: 10, backgroundColor: '#f9f9f9', borderRadius: 10 },
-  notesLabel: { fontWeight: 'bold', fontSize: 12, color: '#777' },
-  notesContent: { fontSize: 13, color: '#555', fontStyle: 'italic' },
-  actions: { justifyContent: 'flex-end', paddingBottom: 10, paddingRight: 10 },
+  inasistenciaBox: { marginTop: 10, padding: 8, backgroundColor: '#FFEBEE', borderRadius: 10, alignItems: 'center' },
+  inasistenciaText: { color: '#D32F2F', fontSize: 12, fontWeight: 'bold' },
   emptyContainer: { alignItems: 'center', marginTop: 100 },
-  emptyText: { marginVertical: 20, color: '#888', fontSize: 16 }
+  emptyText: { marginVertical: 20, color: '#888', fontSize: 16 },
+  
+  // ESTILOS DEL MODAL
+  modalContent: { backgroundColor: 'white', margin: 20, borderRadius: 20, overflow: 'hidden', maxHeight: '80%' },
+  modalHeader: { backgroundColor: '#2E8B57', padding: 20, alignItems: 'center' },
+  modalLabel: { fontWeight: 'bold', color: '#777', fontSize: 11, marginBottom: 5 },
+  modalText: { fontSize: 15, color: '#333', marginBottom: 15, lineHeight: 22 },
+  modalDivider: { marginVertical: 10 }
 });

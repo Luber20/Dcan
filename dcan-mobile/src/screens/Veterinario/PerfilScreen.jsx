@@ -1,58 +1,65 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { Avatar, Button, Card, List, Divider } from 'react-native-paper';
-import { useAuth } from '../../context/AuthContext'; // Importamos el hook de autenticación
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { Avatar, Button, Card, List, Switch, TextInput } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext'; 
 
 export default function PerfilScreen() {
-  const { user, logout } = useAuth(); // Obtenemos los datos del usuario y la función logout
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme(); 
+  const { isDarkMode, colors } = theme;
+
+  const [editMode, setEditMode] = useState(false);
+  const [nombre, setNombre] = useState(user?.name || 'Veterinario');
+  const [image, setImage] = useState(null);
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [1, 1], quality: 0.5,
+    });
+    if (!result.canceled) setImage(result.assets[0].uri);
+  };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Avatar.Image 
-          size={100} 
-          source={{ uri: 'https://via.placeholder.com/100' }} 
-          style={styles.avatar}
-        />
-        <Text style={styles.userName}>{user?.name || 'Veterinario'}</Text>
-        <Text style={styles.userEmail}>{user?.email}</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
+        <TouchableOpacity onPress={pickImage}>
+          <Avatar.Image size={100} source={{ uri: image || 'https://via.placeholder.com/100' }} />
+          <View style={[styles.camIcon, {backgroundColor: colors.primary}]}><List.Icon icon="camera" color="white" /></View>
+        </TouchableOpacity>
+        
+        {editMode ? (
+          <TextInput value={nombre} onChangeText={setNombre} style={styles.input} mode="outlined" />
+        ) : (
+          <Text style={[styles.name, { color: colors.text }]}>{nombre}</Text>
+        )}
+        <Text style={{ color: colors.subtitle }}>{user?.email}</Text>
       </View>
 
-      <Card style={styles.card}>
-        <Card.Content>
-          <List.Section>
-            <List.Subheader>Información Profesional</List.Subheader>
-            <List.Item
-              title="Especialidad"
-              description="Medicina General Veterinaria"
-              left={props => <List.Icon {...props} icon="certificate" color="#2E8B57" />}
-            />
-            <Divider />
-            <List.Item
-              title="Rol"
-              description={user?.roles?.[0]?.name || 'Veterinarian'}
-              left={props => <List.Icon {...props} icon="account-tie" color="#2E8B57" />}
-            />
-          </List.Section>
-        </Card.Content>
+      <Card style={[styles.card, { backgroundColor: colors.card }]}>
+        <List.Item
+          title="Modo Oscuro"
+          titleStyle={{ color: colors.text }}
+          left={p => <List.Icon {...p} icon="theme-light-dark" color={colors.primary} />}
+          right={() => <Switch value={isDarkMode} onValueChange={toggleTheme} color={colors.primary} />}
+        />
+        <List.Item
+          title="Editar Perfil"
+          titleStyle={{ color: colors.text }}
+          left={p => <List.Icon {...p} icon="account-edit" color={colors.primary} />}
+          onPress={() => setEditMode(!editMode)}
+        />
       </Card>
 
-      <View style={styles.actionContainer}>
-        <Button 
-          mode="outlined" 
-          onPress={() => console.log('Editar Perfil')} 
-          style={styles.button}
-          textColor="#2E8B57"
-        >
-          Editar Datos
-        </Button>
-
-        <Button 
-          mode="contained" 
-          onPress={logout} // Llamamos a la función de cerrar sesión
-          style={[styles.button, styles.logoutButton]}
-          buttonColor="#d32f2f"
-        >
+      <View style={{ padding: 20 }}>
+        {editMode && (
+          <Button mode="contained" onPress={() => setEditMode(false)} buttonColor={colors.primary} style={{marginBottom: 10}}>
+            Guardar Cambios
+          </Button>
+        )}
+        <Button mode="outlined" onPress={logout} textColor="#d32f2f" style={{borderColor: '#d32f2f'}}>
           Cerrar Sesión
         </Button>
       </View>
@@ -61,13 +68,9 @@ export default function PerfilScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  header: { alignItems: 'center', paddingVertical: 40, backgroundColor: '#fff' },
-  avatar: { marginBottom: 15, backgroundColor: '#2E8B57' },
-  userName: { fontSize: 22, fontWeight: 'bold', color: '#333' },
-  userEmail: { fontSize: 14, color: '#666' },
-  card: { margin: 20, borderRadius: 10, elevation: 2 },
-  actionContainer: { paddingHorizontal: 20, paddingBottom: 40 },
-  button: { marginBottom: 10, paddingVertical: 5 },
-  logoutButton: { marginTop: 10 }
+  header: { alignItems: 'center', paddingVertical: 40, borderBottomRightRadius: 30, borderBottomLeftRadius: 30 },
+  camIcon: { position: 'absolute', bottom: 0, right: 0, borderRadius: 20, width: 35, height: 35, justifyContent: 'center', alignItems: 'center' },
+  name: { fontSize: 22, fontWeight: 'bold', marginTop: 10 },
+  input: { width: '80%', height: 40, marginTop: 10 },
+  card: { margin: 20, borderRadius: 15 }
 });

@@ -103,22 +103,43 @@ class AppointmentController extends Controller {
     // ==========================================
     // 🩺 MÉTODOS PARA VETERINARIOS
     // ==========================================
-  public function completeAppointment(Request $request) {
-        $request->validate([
-            'appointment_id' => 'required',
-            'diagnostico' => 'required|string',
-            'peso' => 'required'
-        ]);
+   public function completeAppointment(Request $request) {
+    // 1. Validamos los campos. 
+    // Nota: 'diagnostico' es como viene desde React, 'diagnosis' es como se llama en la DB.
+    $request->validate([
+        'appointment_id' => 'required|exists:appointments,id',
+        'diagnostico'    => 'required|string',
+        'peso'           => 'required|numeric', 
+        'temperatura'    => 'nullable|numeric',
+        'tratamiento'    => 'nullable|string'
+    ]);
 
+    try {
         $appointment = Appointment::findOrFail($request->appointment_id);
+        
+        // 2. Cambiamos el estado a completado
         $appointment->status = 'completed';
-        $appointment->diagnosis = $request->diagnostico;
-        $appointment->weight = $request->peso;
+        
+        // 3. Guardamos los datos médicos en las columnas de la BD (en inglés)
+        $appointment->diagnosis   = $request->diagnostico;
+        $appointment->weight      = $request->peso;
+        $appointment->temperature = $request->temperatura;
+        $appointment->treatment   = $request->tratamiento;
+        
         $appointment->save();
 
-        return response()->json(['message' => 'Ficha guardada']);
-    }
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Ficha médica guardada y cita finalizada con éxito.'
+        ], 200);
 
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Error al guardar la ficha: ' . $e->getMessage()
+        ], 500);
+    }
+}
 // En AppointmentController.php
      public function updateStatus(Request $request, $id) 
 {
@@ -145,56 +166,139 @@ class AppointmentController extends Controller {
 
     //para obtener nombres de mascotas
     public function getPatients(Request $request) {
-    $user = Auth::user();
-    
-    // Traemos las mascotas (incluyendo la raza)
-    $patients = \App\Models\Pet::with('user')->get()->map(function($pet) {
+    // Quitamos el ->where('status', 'completed') de aquí adentro
+    $patients = \App\Models\Pet::with(['user', 'appointments' => function($query) {
+        // Solo ordenamos, NO filtramos por estado aquí para que incluya 'cancelled'
+        $query->orderBy('date', 'desc'); 
+    }])->get()->map(function($pet) {
         return [
             'id' => $pet->id,
             'nombre' => $pet->name,
             'especie' => $pet->species,
-            'raza' => $pet->breed, // <--- Asegúrate de que este campo exista en tu tabla 'pets'
+            'raza' => $pet->breed,
+            'edad' => $pet->age,
+            'sexo' => $pet->gender,
             'dueno' => $pet->user->name ?? 'Sin dueño',
-            // Buscamos la fecha de la última cita real
-            'ultima_visita' => $pet->appointments()->latest()->first()?->date ?? 'Sin visitas'
+            'appointments' => $pet->appointments->map(function($app) {
+                return [
+                    'id' => $app->id,
+                    'date' => $app->date,
+                    'type' => $app->type,
+                    'status' => $app->status, // <--- Esto ahora enviará 'cancelled' o 'completed'
+                    'diagnosis' => $app->diagnosis, 
+                    'weight' => $app->weight,
+                    'temperatura' => $app->temperature, 
+                    'tratamiento' => $app->treatment,
+                ];
+            })
         ];
     });
+
     return response()->json($patients);
 }
+
     /**
      * Obtener agenda del veterinario (citas del día)
      * Usado por AgendaScreen.js
      */
     
     public function getVetAgenda(Request $request) {
-        try {
-            $user = Auth::user();
-            $appointments = Appointment::where('clinic_id', $user->clinic_id)
-                ->with(['user', 'pet'])
-                ->orderBy('date', 'desc')
-                ->get();
+    try {
+        $user = Auth::user();
+        $appointments = Appointment::where('clinic_id', $user->clinic_id)
+            ->with(['user', 'pet'])
+            ->orderBy('date', 'desc')
+            ->get();
 
-            return response()->json($appointments->map(function ($app) {
-                return [
-                    'id' => $app->id,
-                    'date' => $app->date,
-                    'time' => $app->time,
-                    'hora_formateada' => substr($app->time, 0, 5),
-                    'motivo' => $app->type,
-                    'status' => $app->status ?? 'pending',
-                    'diagnosis' => $app->diagnosis, // Campo en BD
-                    'weight' => $app->weight,       // Campo en BD
-                    'cliente' => ['name' => $app->user->name ?? 'Cliente'],
-                    'mascota' => [
-                        'nombre' => $app->pet->name ?? 'Mascota',
-                        'especie' => $app->pet->species ?? 'N/A'
-                    ],
-                ];
-            }));
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        return response()->json($appointments->map(function ($app) {
+            return [
+                'id' => $app->id,
+                'date' => $app->date,
+                'time' => $app->time,
+                'hora_formateada' => substr($app->time, 0, 5),
+                'motivo' => $app->type,
+                'status' => $app->status ?? 'pending',
+                'diagnosis' => $app->diagnosis, 
+                'weight' => $app->weight,       
+                'notes' => $app->notes, // <--- ¡ESTA LÍNEA FALTABA!
+                'cliente' => ['name' => $app->user->name ?? 'Cliente'],
+                'mascota' => [
+                    'nombre' => $app->pet->name ?? 'Mascota',
+                    'especie' => $app->pet->species ?? 'N/A',
+                    'edad' => $app->pet->age ?? 'No registrada', 
+                    'sexo' => $app->pet->gender ?? 'No especificado'
+                ],
+            ];
+        }));
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
     }
+}
+     public function getAvailableSlots(Request $request)
+{
+    $request->validate([
+        'date' => 'required|date', // Formato YYYY-MM-DD
+        'veterinarian_id' => 'required|exists:users,id'
+    ]);
+
+    $date = $request->date;
+    $vetId = $request->veterinarian_id;
+
+    // 1. Obtener el nombre del día en español para tu tabla
+    $dayNameEn = \Carbon\Carbon::parse($date)->format('l');
+    $diasMap = [
+        'Monday' => 'Lunes', 'Tuesday' => 'Martes', 'Wednesday' => 'Miercoles',
+        'Thursday' => 'Jueves', 'Friday' => 'Viernes', 'Saturday' => 'Sabado', 'Sunday' => 'Domingo'
+    ];
+    $diaBuscado = $diasMap[$dayNameEn];
+
+    // 2. Obtenemos la configuración BASE del veterinario para ese día de la semana
+    $availability = \App\Models\Availability::where('user_id', $vetId)
+        ->where('day', $diaBuscado)
+        ->where('is_active', true)
+        ->first();
+
+    if (!$availability) {
+        return response()->json([]); // No atiende este día de la semana (ej. Domingos)
+    }
+
+    // 3. Obtenemos las citas OCUPADAS específicamente para ESTE DÍA (ej. solo el 21 de enero)
+    // Usamos whereDate para asegurar que no se filtren otros miércoles
+    $occupiedSlots = \App\Models\Appointment::where('veterinarian_id', $vetId)
+        ->whereDate('date', $date) 
+        ->whereIn('status', ['pending', 'confirmed', 'completed']) // No incluimos 'cancelled' o 'no-show'
+        ->pluck('time')
+        ->map(fn($time) => substr($time, 0, 5))
+        ->toArray();
+
+    // 4. Generamos los intervalos de 30 minutos
+    $slots = [];
+    $inicio = \Carbon\Carbon::parse($availability->start_time);
+    $fin = \Carbon\Carbon::parse($availability->end_time);
+    
+    // Almuerzo (de tu tabla)
+    $lunchStart = \Carbon\Carbon::parse($availability->lunch_start);
+    $lunchEnd = \Carbon\Carbon::parse($availability->lunch_end);
+
+    while ($inicio->lt($fin)) {
+        $horaActual = $inicio->format('H:i');
+        $objActual = \Carbon\Carbon::parse($horaActual);
+
+        // REGLA 1: No debe estar ocupado en la fecha específica ($date)
+        $estaLibre = !in_array($horaActual, $occupiedSlots);
+
+        // REGLA 2: No debe estar en el rango de almuerzo
+        $esHoraAlmuerzo = $objActual->greaterThanOrEqualTo($lunchStart) && $objActual->lessThan($lunchEnd);
+
+        if ($estaLibre && !$esHoraAlmuerzo) {
+            $slots[] = $horaActual;
+        }
+
+        $inicio->addMinutes(30);
+    }
+
+    return response()->json($slots);
+}
     // ==========================================
     // 🏥 MÉTODOS PARA ADMIN CLÍNICA
     // ==========================================

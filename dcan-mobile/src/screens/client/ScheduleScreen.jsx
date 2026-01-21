@@ -6,7 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from "axios";
 import { API_URL } from "../../config/api";
 import { useTheme } from "../../context/ThemeContext";
-import { format } from "date-fns";
+import { format, isSameDay, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function ScheduleScreen({ navigation }) {
@@ -29,9 +29,100 @@ export default function ScheduleScreen({ navigation }) {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState(null);
+  
+  const [availableSlots, setAvailableSlots] = useState([]);
 
   const services = ["Consulta", "Vacuna", "Estética", "Cirugía", "Otro"];
-  const timeSlots = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "14:00", "14:30", "15:00", "15:30", "16:00"];
+
+  // 🛠 LÓGICA: GENERACIÓN DINÁMICA DESDE EL BACKEND
+  const generateTimeSlots = useCallback(async () => {
+    if (!selectedVet) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    try {
+      const formattedDate = format(date, "yyyy-MM-dd");
+
+      // 1. Obtener disponibilidad configurada del veterinario
+      const configRes = await axios.get(`${API_URL}/veterinarians/${selectedVet}/availability`);
+      const config = configRes.data; 
+
+      // 2. Determinar el día de la semana (Normalizado)
+      const nombreDiaRaw = format(date, "EEEE", { locale: es });
+      const nombreDia = nombreDiaRaw.charAt(0).toUpperCase() + nombreDiaRaw.slice(1)
+                        .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      const diaConfig = config[nombreDia];
+
+      if (!diaConfig || !diaConfig.is_active) {
+        setAvailableSlots([]);
+        return;
+      }
+
+      // 3. Obtener citas ocupadas
+      const appointmentsRes = await axios.get(`${API_URL}/appointments`, {
+        params: { date: formattedDate, veterinarian_id: selectedVet }
+      });
+      const occupiedTimes = appointmentsRes.data.map(app => app.time.substring(0, 5));
+
+      // 4. Generar rangos basados en la DB
+      let slots = [];
+      let current = diaConfig.start_time.substring(0, 5); 
+      const end = diaConfig.end_time.substring(0, 5);     
+      const lunchS = diaConfig.lunch_start.substring(0, 5);
+      const lunchE = diaConfig.lunch_end.substring(0, 5);
+
+      const ahora = new Date();
+
+      while (current < end) {
+        const isLunch = current >= lunchS && current < lunchE;
+        const isOccupied = occupiedTimes.includes(current);
+        
+        // Filtro de tiempo real + 2 horas de anticipación
+        let isPast = false;
+        if (isSameDay(date, ahora)) {
+          // Calculamos la hora de la cita en objeto Date para comparar
+          const [h, m] = current.split(':').map(Number);
+          const horaCita = new Date(date);
+          horaCita.setHours(h, m, 0, 0);
+          
+          // Bloquea si la cita es en menos de 2 horas desde ahora
+          const margenAnticipacion = 2 * 60 * 60 * 1000; // 2 horas en ms
+          if (horaCita.getTime() - ahora.getTime() < margenAnticipacion) {
+            isPast = true;
+          }
+        }
+
+        if (!isLunch && !isOccupied && !isPast) {
+          let [h, m] = current.split(':').map(Number);
+          let mEnd = m + 30;
+          let hEnd = h;
+          if (mEnd === 60) { hEnd++; mEnd = 0; }
+          const nextTime = `${hEnd.toString().padStart(2, '0')}:${mEnd.toString().padStart(2, '0')}`;
+
+          slots.push({
+            label: `${current} - ${nextTime}`,
+            value: current
+          });
+        }
+
+        let [h, m] = current.split(':').map(Number);
+        m += 30;
+        if (m === 60) { h++; m = 0; }
+        current = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      }
+
+      setAvailableSlots(slots);
+    } catch (error) {
+      console.log("Error cargando disponibilidad dinámica:", error);
+      setAvailableSlots([]);
+    }
+  }, [selectedVet, date]);
+
+  useEffect(() => {
+    generateTimeSlots();
+  }, [selectedVet, date, generateTimeSlots]);
 
   const loadInitialData = async () => {
     try {
@@ -43,7 +134,7 @@ export default function ScheduleScreen({ navigation }) {
       setPets(petsRes.data);
       setVets(vetsRes.data);
     } catch (error) {
-      console.log("Error al cargar datos:", error);
+      console.log("Error inicial:", error);
     } finally {
       setLoading(false);
     }
@@ -56,14 +147,8 @@ export default function ScheduleScreen({ navigation }) {
       setIsFormVisible(true);
       setSelectedPet(editData.pet_id);
       setSelectedVet(editData.veterinarian_id);
-      
-      if (services.includes(editData.type)) {
-        setServiceType(editData.type);
-      } else {
-        setServiceType("Otro");
-        setOtherService(editData.type);
-      }
-
+      if (services.includes(editData.type)) setServiceType(editData.type);
+      else { setServiceType("Otro"); setOtherService(editData.type); }
       setNotes(editData.notes || "");
       const cleanDate = editData.date.replace(/-/g, '/');
       const parsedDate = new Date(cleanDate);
@@ -73,59 +158,24 @@ export default function ScheduleScreen({ navigation }) {
   }, [editData]);
 
   const resetForm = () => {
-    setSelectedPet(null);
-    setSelectedVet(null);
-    setServiceType("Consulta");
-    setOtherService("");
-    setNotes("");
-    setDate(new Date());
-    setSelectedTime(null);
+    setSelectedPet(null); setSelectedVet(null); setServiceType("Consulta");
+    setOtherService(""); setNotes(""); setDate(new Date()); setSelectedTime(null);
     navigation.setParams({ editData: null }); 
   };
 
   const onDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
-    if (selectedDate) setDate(selectedDate);
-  };
-
-  // 📅 FUNCIÓN: Generar Link de Google Calendar
-  const addToCalendar = (appointmentDate, appointmentTime, petName) => {
-    try {
-      const [hours, minutes] = appointmentTime.split(':');
-      
-      const startDate = new Date(appointmentDate);
-      startDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      
-      const endDate = new Date(startDate);
-      endDate.setHours(startDate.getHours() + 1); // Duración estimada 1h
-
-      // Formato requerido por Google: YYYYMMDDTHHMMSS
-      const formatDate = (date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
-
-      const startStr = formatDate(startDate);
-      const endStr = formatDate(endDate);
-
-      const title = encodeURIComponent(`Cita Veterinaria: ${petName}`);
-      const details = encodeURIComponent(`Cita en D'CAN para ${petName}. ${notes ? 'Notas: ' + notes : ''}`);
-      const location = encodeURIComponent("Clínica Veterinaria D'CAN");
-      
-      const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${location}`;
-
-      Linking.openURL(url);
-    } catch (error) {
-      Alert.alert("Error", "No pudimos abrir el calendario.");
+    if (selectedDate) {
+      setDate(selectedDate);
+      setSelectedTime(null); 
     }
   };
 
   const handleSchedule = async () => {
-    if (!selectedPet || !selectedTime) {
-      return Alert.alert("Atención", "Por favor selecciona la mascota y la hora de la cita.");
+    if (!selectedPet || !selectedTime || !selectedVet) {
+      return Alert.alert("Atención", "Por favor selecciona mascota, veterinario y horario.");
     }
     
-    if (serviceType === "Otro" && !otherService.trim()) {
-      return Alert.alert("Atención", "Por favor escribe el tipo de servicio que necesitas.");
-    }
-
     setSubmitting(true);
     try {
       const payload = {
@@ -138,51 +188,20 @@ export default function ScheduleScreen({ navigation }) {
       };
 
       if (editData) {
-        // EDICIÓN: Solo guardamos, no abrimos calendario
         await axios.put(`${API_URL}/appointments/${editData.id}`, payload);
-        Alert.alert("¡Éxito!", "Cita actualizada correctamente.");
-        resetForm();
-        setIsFormVisible(false);
-        navigation.navigate("Mis Citas");
+        Alert.alert("¡Éxito!", "Cita actualizada.");
       } else {
-        // CREACIÓN: Guardamos y preguntamos por el calendario
         await axios.post(`${API_URL}/appointments`, payload);
-        
-        const petObj = pets.find(p => p.id === selectedPet);
-        const petName = petObj?.name || "Mascota";
-
-        // ✨ PREGUNTAR AL USUARIO
-        Alert.alert(
-          "¡Cita Agendada! 🎉",
-          "¿Quieres agregar un recordatorio en Google Calendar?",
-          [
-            { 
-              text: "No, gracias", 
-              style: "cancel",
-              onPress: () => {
-                resetForm();
-                setIsFormVisible(false);
-                navigation.navigate("Mis Citas");
-              }
-            },
-            { 
-              text: "Sí, agregar 📅", 
-              onPress: () => {
-                addToCalendar(date, selectedTime, petName);
-                resetForm();
-                setIsFormVisible(false);
-                navigation.navigate("Mis Citas");
-              } 
-            }
-          ]
-        );
+        Alert.alert("¡Éxito!", "Cita agendada correctamente.");
       }
+      resetForm(); setIsFormVisible(false); navigation.navigate("Mis Citas");
     } catch (error) {
-      Alert.alert("Error", "No pudimos procesar tu cita.");
-    } finally {
-      setSubmitting(false);
-    }
+      Alert.alert("Error", "No pudimos procesar la cita.");
+    } finally { setSubmitting(false); }
   };
+
+  // Límite de 30 días para el calendario
+  const maxDate = addDays(new Date(), 30);
 
   if (!isFormVisible) {
     return (
@@ -192,12 +211,7 @@ export default function ScheduleScreen({ navigation }) {
         </View>
         <Title style={[styles.welcomeTitle, {color: theme.colors.text}]}>¿Agendamos una cita?</Title>
         <Text style={styles.welcomeSubtitle}>Reserva un espacio para el cuidado de tu mascota en pocos pasos.</Text>
-        <Button 
-          mode="contained" 
-          onPress={() => setIsFormVisible(true)}
-          style={[styles.startBtn, {backgroundColor: theme.colors.primary}]}
-          contentStyle={{paddingVertical: 10}}
-        >
+        <Button mode="contained" onPress={() => setIsFormVisible(true)} style={[styles.startBtn, {backgroundColor: theme.colors.primary}]}>
           Agendar Cita Ahora
         </Button>
       </View>
@@ -209,22 +223,14 @@ export default function ScheduleScreen({ navigation }) {
   return (
     <ScrollView style={[styles.container, {backgroundColor: theme.colors.background}]}>
       <View style={styles.headerRow}>
-        <Title style={[styles.mainTitle, {color: theme.colors.primary}]}>
-            {editData ? "Editar Cita" : "Nueva Cita 📅"}
-        </Title>
-        <Button onPress={() => { resetForm(); setIsFormVisible(false); }} textColor="#FF5252" mode="text">
-          Cancelar
-        </Button>
+        <Title style={[styles.mainTitle, {color: theme.colors.primary}]}>{editData ? "Editar Cita" : "Nueva Cita 📅"}</Title>
+        <Button onPress={() => { resetForm(); setIsFormVisible(false); }} textColor="#FF5252">Cancelar</Button>
       </View>
 
       <Text style={[styles.label, {color: theme.colors.text}]}>1. ¿A quién llevas?</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.row}>
         {pets.map(pet => (
-          <TouchableOpacity 
-            key={pet.id} 
-            onPress={() => setSelectedPet(pet.id)}
-            style={[styles.petCard, selectedPet === pet.id && {borderColor: theme.colors.primary, borderWidth: 2, backgroundColor: '#f0fff0'}]}
-          >
+          <TouchableOpacity key={pet.id} onPress={() => setSelectedPet(pet.id)} style={[styles.petCard, selectedPet === pet.id && {borderColor: theme.colors.primary, borderWidth: 2, backgroundColor: '#f0fff0'}]}>
             {pet.photo_url ? <Avatar.Image size={60} source={{uri: pet.photo_url}} /> : <Avatar.Text size={60} label={pet.name[0].toUpperCase()} style={{backgroundColor: theme.colors.primary}} />}
             <Text style={[styles.petName, {color: theme.colors.text}]}>{pet.name}</Text>
           </TouchableOpacity>
@@ -234,45 +240,14 @@ export default function ScheduleScreen({ navigation }) {
       <Text style={[styles.label, {color: theme.colors.text}]}>2. Servicio</Text>
       <View style={styles.chipGroup}>
         {services.map(s => (
-          <Chip 
-            key={s} 
-            selected={serviceType === s} 
-            onPress={() => setServiceType(s)} 
-            style={[styles.chip, serviceType === s && {backgroundColor: theme.colors.primary}]}
-            textStyle={{color: serviceType === s ? '#fff' : '#000'}}
-          >
-            {s}
-          </Chip>
+          <Chip key={s} selected={serviceType === s} onPress={() => setServiceType(s)} style={[styles.chip, serviceType === s && {backgroundColor: theme.colors.primary}]} textStyle={{color: serviceType === s ? '#fff' : '#000'}}>{s}</Chip>
         ))}
       </View>
 
-      {serviceType === "Otro" && (
-        <TextInput
-          label="¿Qué servicio necesitas?"
-          value={otherService}
-          onChangeText={setOtherService}
-          mode="flat"
-          style={styles.otherInput}
-          placeholder="Ej: Desparasitación interna"
-          theme={{ colors: { primary: theme.colors.primary }}}
-        />
-      )}
-
       <Text style={[styles.label, {color: theme.colors.text}]}>3. Veterinario</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.row}>
-        <TouchableOpacity 
-          onPress={() => setSelectedVet(null)}
-          style={[styles.vetCard, selectedVet === null && {backgroundColor: '#f0fff0', borderColor: theme.colors.primary, borderWidth: 2}]}
-        >
-          <Avatar.Icon size={45} icon="account-group" style={{backgroundColor: '#ccc'}} />
-          <Text style={styles.vetName}>Cualquiera</Text>
-        </TouchableOpacity>
         {vets.map(vet => (
-          <TouchableOpacity 
-            key={vet.id} 
-            onPress={() => setSelectedVet(vet.id)}
-            style={[styles.vetCard, selectedVet === vet.id && {backgroundColor: '#f0fff0', borderColor: theme.colors.primary, borderWidth: 2}]}
-          >
+          <TouchableOpacity key={vet.id} onPress={() => setSelectedVet(vet.id)} style={[styles.vetCard, selectedVet === vet.id && {backgroundColor: '#f0fff0', borderColor: theme.colors.primary, borderWidth: 2}]}>
             <Avatar.Text size={45} label={vet.name[0]} style={{backgroundColor: theme.colors.primary}} />
             <Text style={styles.vetName}>{vet.name}</Text>
           </TouchableOpacity>
@@ -283,21 +258,45 @@ export default function ScheduleScreen({ navigation }) {
       <Button mode="outlined" onPress={() => setShowDatePicker(true)} icon="calendar" style={styles.dateButton} textColor={theme.colors.primary}>
         {format(date, "PPPP", { locale: es })}
       </Button>
-
       {showDatePicker && (
-        <DateTimePicker value={date} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} minimumDate={new Date()} onChange={onDateChange} />
+        <DateTimePicker 
+          value={date} 
+          mode="date" 
+          display="default" 
+          minimumDate={new Date()} 
+          maximumDate={maxDate} 
+          onChange={onDateChange} 
+        />
       )}
 
-      <Text style={[styles.label, {color: theme.colors.text}]}>5. Hora Disponible</Text>
-      <View style={styles.chipGroup}>
-        {timeSlots.map(t => (
-          <Chip key={t} selected={selectedTime === t} onPress={() => setSelectedTime(t)} style={[styles.chip, selectedTime === t && {backgroundColor: theme.colors.primary}]} textStyle={{color: selectedTime === t ? '#fff' : '#000'}}>
-            {t}
-          </Chip>
-        ))}
-      </View>
+      <Text style={[styles.label, {color: theme.colors.text}]}>5. Horario Disponible</Text>
+      {!selectedVet ? (
+        <Text style={{color: '#666', fontStyle: 'italic', marginBottom: 10}}>Selecciona un veterinario para ver disponibilidad</Text>
+      ) : (
+        <View style={styles.chipGroup}>
+          {availableSlots.length > 0 ? (
+            availableSlots.map(slot => (
+              <Chip 
+                key={slot.value} 
+                selected={selectedTime === slot.value} 
+                onPress={() => setSelectedTime(slot.value)} 
+                style={[styles.chip, selectedTime === slot.value && {backgroundColor: theme.colors.primary}]} 
+                textStyle={{color: selectedTime === slot.value ? '#fff' : '#000'}}
+              >
+                {slot.label}
+              </Chip>
+            ))
+          ) : (
+            <Text style={{color: 'red', marginBottom: 10}}>No hay horarios disponibles o es muy pronto para agendar hoy.</Text>
+          )}
+        </View>
+      )}
 
-      <TextInput label="Notas adicionales" value={notes} onChangeText={setNotes} mode="outlined" multiline numberOfLines={3} style={styles.input} theme={{ colors: { primary: theme.colors.primary }}} />
+      {serviceType === "Otro" && (
+        <TextInput label="Especifique el servicio" value={otherService} onChangeText={setOtherService} mode="outlined" style={styles.input} />
+      )}
+
+      <TextInput label="Notas adicionales" value={notes} onChangeText={setNotes} mode="outlined" multiline numberOfLines={3} style={styles.input} />
 
       <Button mode="contained" onPress={handleSchedule} loading={submitting} disabled={submitting} style={[styles.submitBtn, {backgroundColor: theme.colors.primary}]}>
         {editData ? "Guardar Cambios" : "Confirmar y Agendar"}
@@ -322,7 +321,6 @@ const styles = StyleSheet.create({
   petName: { marginTop: 8, fontSize: 13, fontWeight: 'bold' },
   chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: { marginBottom: 5, borderRadius: 10 },
-  otherInput: { marginTop: 10, backgroundColor: 'transparent' }, 
   vetCard: { alignItems: 'center', marginRight: 12, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: '#ddd', width: 95, backgroundColor: '#fff', elevation: 2 },
   vetName: { fontSize: 11, marginTop: 8, textAlign: 'center', fontWeight: 'bold' },
   input: { marginTop: 20, backgroundColor: '#fff' },
