@@ -33,7 +33,7 @@ class AppointmentController extends Controller {
         try {
             $appointment = Appointment::where('user_id', Auth::id())
                 ->where('date', '>=', now()->toDateString())
-                ->where('status', '!=', 'cancelled')
+                ->where('status', 'pending')
                 ->with(['pet', 'veterinarian'])
                 ->orderBy('date', 'asc')
                 ->orderBy('time', 'asc')

@@ -9,7 +9,6 @@ import { useTheme } from "../../context/ThemeContext";
 import { API_URL } from "../../config/api";
 
 // 🔧 AJUSTA ESTAS CLAVES SEGÚN TU BASE DE DATOS
-// Backend suele usar: 'superadmin' (o super_admin), 'clinic_admin', 'veterinarian', 'client'
 const ROLE_OPTIONS = [
   { key: "superadmin", dbRole: "superadmin", label: "Super Admin" }, 
   { key: "admin", dbRole: "clinic_admin", label: "Admin (Dueño)" },
@@ -37,7 +36,7 @@ export default function UsersScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [roleKey, setRoleKey] = useState("cliente"); // Usamos la key del array local
+  const [roleKey, setRoleKey] = useState("cliente"); 
   const [clinicId, setClinicId] = useState(null);
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState("");
@@ -91,30 +90,33 @@ export default function UsersScreen() {
     setEmail(u.email || "");
     setPhone(u.phone || "");
 
-    // Detectar rol actual del usuario
     const uRole = u.roles && u.roles.length > 0 ? u.roles[0].name : (u.role || "client");
     
-    // Mapear el rol de la BD a nuestra key local
     const foundOption = ROLE_OPTIONS.find(opt => 
         opt.dbRole === uRole || opt.dbRole === uRole.replace('_', '')
     );
     setRoleKey(foundOption ? foundOption.key : "cliente");
 
     setClinicId(u.clinic_id ?? u.clinicId ?? null);
-    setPassword(""); // Vacía para no sobreescribir si no quiere cambiarla
+    setPassword(""); 
     setFormError("");
     setOpenForm(true);
   };
 
-  const requiresClinic = (key) => key === "admin" || key === "veterinario";
+  // ✅ CAMBIO AQUÍ: Ahora 'cliente' TAMBIÉN requiere seleccionar clínica
+  const requiresClinic = (key) => key === "admin" || key === "veterinario" || key === "cliente";
 
   const saveUser = async () => {
     if (!fullName.trim() || !email.trim()) return setFormError("Nombre y correo obligatorios.");
     if (!editing && !password.trim()) return setFormError("Contraseña obligatoria al crear.");
+    
+    // Validación extra: Si requiere clínica y no seleccionó ninguna
+    if (requiresClinic(roleKey) && !clinicId) {
+        return setFormError("Debes asignar una clínica a este usuario.");
+    }
 
     setFormError("");
     try {
-      // Buscar el nombre real del rol para la BD (ej: 'clinic_admin')
       const selectedOption = ROLE_OPTIONS.find(r => r.key === roleKey);
       const dbRoleName = selectedOption ? selectedOption.dbRole : "client";
 
@@ -141,15 +143,16 @@ export default function UsersScreen() {
       fetchUsers();
     } catch (e) {
       console.log(e);
-      setFormError("Error al guardar. Revisa que el correo no esté duplicado.");
+      // Mensaje de error más detallado si el servidor responde
+      const msg = e.response?.data?.message || "Error al guardar. Revisa datos duplicados.";
+      setFormError(msg);
     }
   };
 
-  // --- ELIMINAR ---
   const handleDelete = (u) => {
     Alert.alert(
       "Eliminar Usuario",
-      `¿Estás seguro de eliminar a ${u.name}? Esta acción no se puede deshacer.`,
+      `¿Estás seguro de eliminar a ${u.name}?`,
       [
         { text: "Cancelar", style: "cancel" },
         { 
@@ -178,28 +181,18 @@ export default function UsersScreen() {
 
   // --- FILTRADO ---
   const filtered = users.filter((u) => {
-    // Normalizar rol del usuario
     const uRole = u.roles && u.roles.length > 0 ? u.roles[0].name : (u.role || "");
-    
-    // Texto de búsqueda
     const text = `${u.name} ${u.email} ${uRole}`.toLowerCase();
     const matchQ = text.includes(q.trim().toLowerCase());
 
-    // Filtro por tabs
     let matchRole = true;
     if (roleFilter !== "all") {
-        // Buscar qué roles de BD corresponden a la pestaña seleccionada
         const targetOption = ROLE_OPTIONS.find(opt => opt.key === roleFilter);
         if (targetOption) {
-            // Comparamos el rol de la BD con el que esperamos (ej: clinic_admin)
-            // Usamos includes por si acaso hay variaciones 'superadmin' vs 'super_admin'
             matchRole = uRole.includes(targetOption.dbRole) || uRole === targetOption.dbRole;
-            
-            // Fix específico para SuperAdmin si hay inconsistencia de guiones bajos
             if (roleFilter === 'superadmin' && (uRole === 'super_admin' || uRole === 'superadmin')) matchRole = true;
         }
     }
-
     return matchQ && matchRole;
   });
 
@@ -245,9 +238,10 @@ export default function UsersScreen() {
                 ))}
               </View>
 
+              {/* Selector de Clínica aparece para: Admin, Vet y Cliente */}
               {requiresClinic(roleKey) && (
                 <View>
-                   <Paragraph style={{marginTop: 10}}>Clínica:</Paragraph>
+                   <Paragraph style={{marginTop: 10}}>Asignar Clínica:</Paragraph>
                    <View style={styles.roleGrid}>
                     {clinics.map((c) => (
                       <Chip key={c.id} selected={clinicId === c.id} onPress={() => setClinicId(c.id)} style={styles.roleChip}>{c.name}</Chip>
@@ -271,7 +265,7 @@ export default function UsersScreen() {
           </Card>
         )}
 
-        {/* LISTA */}
+        {/* LISTA DE USUARIOS */}
         {filtered.map((u) => {
            const uRole = u.roles && u.roles.length > 0 ? u.roles[0].name : (u.role || "client");
            const active = u.is_active ?? true;

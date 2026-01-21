@@ -8,7 +8,6 @@ use App\Http\Controllers\Api\PetController;
 use App\Http\Controllers\Api\ClinicController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\AppointmentController;
-// Importamos el controlador de Disponibilidad
 use App\Http\Controllers\AvailabilityController; 
 
 // ==========================================
@@ -45,7 +44,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // ==========================================
     // 🩺 RUTAS PARA VETERINARIOS
     // ==========================================
-    // ✅ CORRECCIÓN: Agregamos 'veterinario' para que acepte tu rol en español
     Route::middleware(['role:veterinarian|staff|veterinario'])->group(function () {
         
         // 1. Agenda y Pacientes
@@ -95,11 +93,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // 👑 SUPER ADMIN
     // ==========================================
     Route::middleware(['role:superadmin|super_admin'])->group(function () {
+        
+        // Gestión de Clínicas
         Route::get('/admin/clinics', [ClinicController::class, 'indexAdmin']); 
         Route::post('/admin/clinics', [ClinicController::class, 'store']);
         Route::put('/admin/clinics/{clinic}', [ClinicController::class, 'update']);
         Route::patch('/admin/clinics/{clinic}/toggle', [ClinicController::class, 'toggle']);
         
+        // Dashboard Stats
         Route::get('/admin/dashboard', function () {
              return [
                  'clinics_total' => \App\Models\Clinic::count(),
@@ -108,8 +109,18 @@ Route::middleware('auth:sanctum')->group(function () {
              ];
         });
         
+        // 👥 GESTIÓN DE USUARIOS (¡AQUÍ ESTABA EL FALTANTE!)
         Route::get('/admin/users', function () {
              return \App\Models\User::with('roles', 'clinic')->orderBy('id', 'desc')->get();
         });
+
+        // ✅ ESTA LÍNEA ES LA QUE SOLUCIONA EL ERROR 405:
+        // Permite crear usuarios (Dueños, Vets, Clientes) usando la función nueva
+        Route::post('/admin/users', [RegisterController::class, 'registerAdminUser']);
+        
+        // Rutas para editar/eliminar usuarios desde SuperAdmin
+        Route::put('/admin/users/{user}', [ClinicController::class, 'updateGlobalUser']);
+        Route::delete('/admin/users/{user}', [ClinicController::class, 'deleteGlobalUser']);
+        Route::patch('/admin/users/{user}/toggle', [ClinicController::class, 'toggleClient']);
     });
 });
