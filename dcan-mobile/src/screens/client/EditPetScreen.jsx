@@ -1,15 +1,16 @@
-import React, { useState } from "react";
-import { ScrollView, Alert, View, StyleSheet, KeyboardAvoidingView, Platform, Text, TouchableOpacity, Image } from "react-native";
-import { TextInput, Button, RadioButton, Chip } from "react-native-paper";
+import React, { useState, useEffect } from "react";
+import { ScrollView, Alert, View, StyleSheet, KeyboardAvoidingView, Platform, Text, TouchableOpacity, Image, Modal, FlatList } from "react-native";
+import { TextInput, Button, Chip, Title, Searchbar, ActivityIndicator } from "react-native-paper";
 import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../../context/ThemeContext";
 import { API_URL } from "../../config/api";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useAuth } from "../../context/AuthContext";
 
 export default function EditPetScreen({ route, navigation }) {
   const { theme } = useTheme();
-  
+  const { token } = useAuth(); // Importante si catalogs requiere auth
   const [permissionResponse, requestPermission] = ImagePicker.useMediaLibraryPermissions();
 
   const pet = route.params?.pet;
@@ -17,14 +18,11 @@ export default function EditPetScreen({ route, navigation }) {
 
   // --- ESTADOS ---
   const [name, setName] = useState(pet.name);
-  const isStandard = ["Perro", "Gato"].includes(pet.species);
-  const [speciesSelection, setSpeciesSelection] = useState(isStandard ? pet.species : "Otro");
-  const [customSpecies, setCustomSpecies] = useState(isStandard ? "" : pet.species);
-  const [breed, setBreed] = useState(pet.breed || "");
   const [gender, setGender] = useState(pet.gender);
   const [age, setAge] = useState(pet.age || "");
   const [weight, setWeight] = useState(pet.weight ? String(pet.weight) : "");
   
+  // Vacunas (Mantenemos lógica simple por ahora)
   const isStandardVaccine = ["Al día", "Pendientes", "Ninguna"].includes(pet.vaccines);
   const [vaccineStatus, setVaccineStatus] = useState(isStandardVaccine ? pet.vaccines : "Otro");
   const [customVaccines, setCustomVaccines] = useState(isStandardVaccine ? "" : pet.vaccines);
@@ -33,27 +31,57 @@ export default function EditPetScreen({ route, navigation }) {
   const [newImageSelected, setNewImageSelected] = useState(false); 
   const [loading, setLoading] = useState(false);
 
+  // --- CATÁLOGO ---
+  const [catalogs, setCatalogs] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  
+  // Especie y Raza (Inicializados con los datos actuales)
+  // Nota: Al editar, 'selectedSpecies' será un objeto simulado {name: 'Perro'} hasta que cargue el catálogo real
+  const [selectedSpecies, setSelectedSpecies] = useState({ name: pet.species }); 
+  const [selectedBreed, setSelectedBreed] = useState({ name: pet.breed }); 
+
+  const [showSpeciesModal, setShowSpeciesModal] = useState(false);
+  const [showBreedModal, setShowBreedModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // 1. Cargar Catálogo y Sincronizar
+  useEffect(() => {
+    fetchCatalogs();
+  }, []);
+
+  const fetchCatalogs = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/catalogs`);
+      const list = res.data;
+      setCatalogs(list);
+      
+      // Intentar encontrar el objeto especie real en la lista para habilitar las razas correctas
+      const foundSpecies = list.find(s => s.name === pet.species);
+      if (foundSpecies) {
+        setSelectedSpecies(foundSpecies);
+        // Intentar encontrar la raza
+        const foundBreed = foundSpecies.breeds.find(b => b.name === pet.breed);
+        if (foundBreed) setSelectedBreed(foundBreed);
+        else setSelectedBreed({ name: pet.breed }); // Mantener el texto original si no está en la lista
+      }
+    } catch (e) {
+      console.log("Error catálogo:", e);
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
   // 📸 ELEGIR FOTO
   const pickImage = async () => {
     try {
         if (permissionResponse?.status !== 'granted') {
             const { status } = await requestPermission();
-            if (status !== 'granted') {
-                Alert.alert("Permiso denegado", "Necesitamos acceso a la galería.");
-                return;
-            }
+            if (status !== 'granted') return Alert.alert("Permiso denegado");
         }
-
-        // Solución "inteligente" para el Warning: detecta qué usa tu versión de Expo
-        const mediaTypes = ImagePicker.MediaType 
-            ? ImagePicker.MediaType.Images 
-            : ImagePicker.MediaTypeOptions.Images;
-
+        
         let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: mediaTypes,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.2, // Mantenemos 0.2 para que no falle la red
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true, aspect: [4, 3], quality: 0.2,
         });
 
         if (!result.canceled) {
@@ -65,73 +93,47 @@ export default function EditPetScreen({ route, navigation }) {
     }
   };
 
-  // 💾 GUARDAR CAMBIOS (Lógica EXACTA de la versión que funcionó)
+  // 💾 GUARDAR CAMBIOS
   const handleUpdate = async () => {
     if (!name.trim()) return Alert.alert("Error", "El nombre es obligatorio");
 
-    const finalSpecies = speciesSelection === "Otro" ? customSpecies : speciesSelection;
     const finalVaccines = vaccineStatus === "Otro" ? customVaccines : vaccineStatus;
-
     setLoading(true);
 
     try {
         const formData = new FormData();
-        
-        // Laravel Method Spoofing
         formData.append("_method", "PUT"); 
-        
-        // Datos de texto
         formData.append("name", String(name));
-        formData.append("species", String(finalSpecies));
-        formData.append("breed", String(breed));
+        // Enviamos nombres del catálogo o el texto original
+        formData.append("species", selectedSpecies?.name || pet.species);
+        formData.append("breed", selectedBreed?.name || pet.breed);
         formData.append("gender", String(gender));
         formData.append("age", String(age));
         formData.append("weight", String(weight));
         formData.append("vaccines", String(finalVaccines || ""));
 
-        // Foto
         if (newImageSelected) {
             let localUri = image;
-            // Fix Android
-            if (Platform.OS === 'android' && !localUri.startsWith('file://') && !localUri.startsWith('content://')) {
-                localUri = 'file://' + localUri;
-            }
-
             let filename = localUri.split('/').pop();
             let match = /\.(\w+)$/.exec(filename);
             let type = match ? `image/${match[1]}` : `image/jpeg`;
-            if (type === 'image/jpg') type = 'image/jpeg';
-
-            formData.append("photo", { 
-                uri: localUri, 
-                name: filename, 
-                type: type 
-            });
+            formData.append("photo", { uri: localUri, name: filename, type });
         }
 
-        // PETICIÓN (Idéntica a la que funcionó)
         await axios.post(`${API_URL}/pets/${pet.id}`, formData, {
-            headers: {
+            headers: { 
                 "Accept": "application/json",
-                "Content-Type": "multipart/form-data", // Dejamos esto porque en la versión exitosa estaba
+                "Content-Type": "multipart/form-data",
+                "Authorization": `Bearer ${token}`
             },
-            transformRequest: (data) => {
-                return data; 
-            },
+            transformRequest: (data) => data, 
         });
 
         Alert.alert("¡Éxito!", "Mascota actualizada correctamente");
         navigation.goBack();
 
     } catch (error) {
-        // Manejo de error silencioso pero informativo para el usuario
-        if (error.response) {
-            Alert.alert("Error del Servidor", "No se pudieron guardar los cambios.");
-        } else if (error.request) {
-            Alert.alert("Error de Conexión", "El servidor no responde. Verifica tu Wifi.");
-        } else {
-            Alert.alert("Error", "Ocurrió un problema inesperado.");
-        }
+        Alert.alert("Error", "No se pudieron guardar los cambios.");
     } finally {
         setLoading(false);
     }
@@ -141,11 +143,12 @@ export default function EditPetScreen({ route, navigation }) {
     Alert.alert("Eliminar", "¿Estás seguro?", [
       { text: "Cancelar", style: "cancel" },
       {
-        text: "Eliminar",
-        style: "destructive",
+        text: "Eliminar", style: "destructive",
         onPress: async () => {
           try {
-            await axios.delete(`${API_URL}/pets/${pet.id}`);
+            await axios.delete(`${API_URL}/pets/${pet.id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             navigation.goBack();
           } catch (error) {
             Alert.alert("Error", "No se pudo eliminar.");
@@ -154,6 +157,22 @@ export default function EditPetScreen({ route, navigation }) {
       },
     ]);
   };
+
+  // Helper Input Selección
+  const SelectionInput = ({ label, value, onPress, disabled }) => (
+    <TouchableOpacity onPress={disabled ? null : onPress} activeOpacity={0.7} style={{marginBottom: 15}}>
+        <View pointerEvents="none">
+            <TextInput
+                label={label}
+                value={value}
+                mode="outlined"
+                style={{backgroundColor: disabled ? '#f0f0f0' : 'white'}}
+                right={<TextInput.Icon icon="chevron-down" />}
+                editable={false} 
+            />
+        </View>
+    </TouchableOpacity>
+  );
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -173,56 +192,51 @@ export default function EditPetScreen({ route, navigation }) {
                     <Ionicons name="pencil" size={16} color="#fff" />
                 </View>
             </TouchableOpacity>
-            <Text style={{color: '#666', marginTop: 5, fontSize: 12}}>Toca para cambiar foto</Text>
+            <Text style={{color: '#666', marginTop: 5, fontSize: 12}}>Editar Foto</Text>
         </View>
 
         <TextInput label="Nombre" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
 
-        <Text style={[styles.label, {color: theme.colors.text}]}>Especie:</Text>
-        <RadioButton.Group onValueChange={setSpeciesSelection} value={speciesSelection}>
-            <View style={styles.rowWrap}>
-                <View style={styles.radioOption}><RadioButton value="Perro" color="#2E8B57"/><Text style={{color: theme.colors.text}}>Perro</Text></View>
-                <View style={styles.radioOption}><RadioButton value="Gato" color="#2E8B57"/><Text style={{color: theme.colors.text}}>Gato</Text></View>
-                <View style={styles.radioOption}><RadioButton value="Otro" color="#2E8B57"/><Text style={{color: theme.colors.text}}>Otro</Text></View>
-            </View>
-        </RadioButton.Group>
-        
-        {speciesSelection === "Otro" && (
-            <TextInput label="Especifica especie" value={customSpecies} onChangeText={setCustomSpecies} mode="outlined" style={styles.input} />
+        {/* 🐾 SELECTOR DE ESPECIE */}
+        {catalogLoading ? <ActivityIndicator style={{marginBottom:10}} /> : (
+            <SelectionInput 
+                label="Especie" 
+                value={selectedSpecies?.name} 
+                onPress={() => setShowSpeciesModal(true)} 
+            />
         )}
+
+        {/* 🐕 SELECTOR DE RAZA */}
+        <SelectionInput 
+            label="Raza" 
+            value={selectedBreed?.name} 
+            onPress={() => { setSearchQuery(""); setShowBreedModal(true); }}
+            disabled={!selectedSpecies || !selectedSpecies.breeds} // Desactivado si no hay razas cargadas
+        />
 
         <View style={styles.rowInput}>
             <TextInput label="Edad" value={age} onChangeText={setAge} mode="outlined" style={[styles.input, {flex: 1, marginRight: 5}]} />
-            <TextInput label="Peso" value={weight} onChangeText={setWeight} keyboardType="numeric" mode="outlined" style={[styles.input, {flex: 1, marginLeft: 5}]} />
+            <TextInput label="Peso (Kg)" value={weight} onChangeText={setWeight} keyboardType="numeric" mode="outlined" style={[styles.input, {flex: 1, marginLeft: 5}]} />
         </View>
 
-        <TextInput label="Raza" value={breed} onChangeText={setBreed} mode="outlined" style={styles.input} />
+        {/* GÉNERO */}
+        <Text style={[styles.label, {color: theme.colors.text}]}>Género:</Text>
+        <View style={styles.chipContainer}>
+            {["Macho", "Hembra"].map((opt) => (
+                <Chip key={opt} mode="outlined" selected={gender === opt} onPress={() => setGender(opt)} style={[styles.chip, gender === opt && {backgroundColor: theme.colors.primary + '20', borderColor: theme.colors.primary}]}>{opt}</Chip>
+            ))}
+        </View>
 
+        {/* VACUNAS */}
         <Text style={[styles.label, {color: theme.colors.text}]}>Vacunas:</Text>
         <View style={styles.chipContainer}>
             {["Al día", "Pendientes", "Ninguna", "Otro"].map((opt) => (
-                <Chip 
-                    key={opt} 
-                    mode="outlined" 
-                    selected={vaccineStatus === opt} 
-                    onPress={() => setVaccineStatus(opt)}
-                    style={styles.chip}
-                    textStyle={{color: vaccineStatus === opt ? "#2E8B57" : "#666"}}
-                >
-                    {opt}
-                </Chip>
+                <Chip key={opt} mode="outlined" selected={vaccineStatus === opt} onPress={() => setVaccineStatus(opt)} style={[styles.chip, vaccineStatus === opt && {backgroundColor: theme.colors.primary + '20', borderColor: theme.colors.primary}]}>{opt}</Chip>
             ))}
         </View>
         {vaccineStatus === "Otro" && (
              <TextInput label="Detalla vacunas..." value={customVaccines} onChangeText={setCustomVaccines} mode="outlined" style={styles.input} />
         )}
-
-        <RadioButton.Group onValueChange={setGender} value={gender}>
-            <View style={styles.row}>
-                <View style={styles.radioOption}><RadioButton value="Macho" color="#2E8B57"/><Text style={{color: theme.colors.text}}>Macho</Text></View>
-                <View style={styles.radioOption}><RadioButton value="Hembra" color="#2E8B57"/><Text style={{color: theme.colors.text}}>Hembra</Text></View>
-            </View>
-        </RadioButton.Group>
 
         <Button mode="contained" onPress={handleUpdate} loading={loading} style={[styles.button, { backgroundColor: theme.colors.primary }]}>
           Guardar Cambios
@@ -233,6 +247,56 @@ export default function EditPetScreen({ route, navigation }) {
         </Button>
         <View style={{height: 50}} />
       </ScrollView>
+
+      {/* ================= MODAL ESPECIES ================= */}
+      <Modal visible={showSpeciesModal} transparent animationType="slide" onRequestClose={() => setShowSpeciesModal(false)}>
+        <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, {backgroundColor: 'white'}]}>
+                <Title style={{textAlign:'center', marginBottom:15}}>Cambiar Especie</Title>
+                <FlatList 
+                    data={catalogs}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({item}) => (
+                        <TouchableOpacity style={styles.listItem} onPress={() => {
+                                setSelectedSpecies(item);
+                                setSelectedBreed({name: ""}); // Reset raza al cambiar
+                                setShowSpeciesModal(false);
+                            }}>
+                            <MaterialCommunityIcons name="paw" size={24} color={theme.colors.primary} />
+                            <Text style={styles.listText}>{item.name}</Text>
+                        </TouchableOpacity>
+                    )}
+                />
+                <Button mode="text" onPress={() => setShowSpeciesModal(false)}>Cancelar</Button>
+            </View>
+        </View>
+      </Modal>
+
+      {/* ================= MODAL RAZAS ================= */}
+      <Modal visible={showBreedModal} transparent animationType="slide" onRequestClose={() => setShowBreedModal(false)}>
+        <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, {backgroundColor: 'white'}]}>
+                <Title style={{textAlign:'center', marginBottom:10}}>Cambiar Raza</Title>
+                <Searchbar placeholder="Buscar..." onChangeText={setSearchQuery} value={searchQuery} style={{marginBottom: 10, height: 45}} inputStyle={{minHeight: 0}} />
+                
+                <FlatList 
+                    data={selectedSpecies?.breeds?.filter(b => b.name.toLowerCase().includes(searchQuery.toLowerCase())) || []}
+                    keyExtractor={(item) => item.id.toString()}
+                    ListEmptyComponent={<Text style={{textAlign:'center', padding:20, color:'#888'}}>Sin resultados.</Text>}
+                    renderItem={({item}) => (
+                        <TouchableOpacity style={styles.listItem} onPress={() => { setSelectedBreed(item); setShowBreedModal(false); }}>
+                            <Text style={styles.listText}>{item.name}</Text>
+                        </TouchableOpacity>
+                    )}
+                />
+                <TouchableOpacity style={[styles.listItem, {borderTopWidth:1, borderColor:'#eee'}]} onPress={() => { setSelectedBreed({name: "Mestizo/Otro"}); setShowBreedModal(false); }}>
+                    <Text style={[styles.listText, {color: theme.colors.primary}]}>Mestizo / Otro</Text>
+                </TouchableOpacity>
+                <Button mode="text" onPress={() => setShowBreedModal(false)}>Cancelar</Button>
+            </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -245,11 +309,12 @@ const styles = StyleSheet.create({
   editBadge: { position: 'absolute', right: 0, bottom: 0, backgroundColor: '#2E8B57', borderRadius: 15, padding: 5, elevation: 2 },
   input: { marginBottom: 15, backgroundColor: '#fff' },
   label: { fontSize: 16, fontWeight: 'bold', marginTop: 5, marginBottom: 5 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 },
   rowInput: { flexDirection: 'row', justifyContent: 'space-between' },
-  radioOption: { flexDirection: 'row', alignItems: 'center', marginRight: 15 },
   chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 15 },
   chip: { backgroundColor: '#fff' },
   button: { marginTop: 10 },
-});
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { borderRadius: 20, padding: 20, maxHeight: '80%', elevation: 5 },
+  listItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  listText: { flex: 1, fontSize: 16, marginLeft: 10, color: '#333' }
+}); 

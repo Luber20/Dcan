@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { View, StyleSheet, ScrollView, Alert } from "react-native";
-import { Card, Title, Paragraph, TextInput, Button, Switch, Divider, HelperText } from "react-native-paper";
+import { View, StyleSheet, ScrollView, Alert, SafeAreaView, Platform, StatusBar } from "react-native";
+import { Card, Title, Paragraph, TextInput, Button, Switch, Divider, Avatar, Text } from "react-native-paper";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -28,7 +28,7 @@ export default function ProfileScreenSuperAdmin() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [savingPass, setSavingPass] = useState(false);
 
-  // ✅ 1. GUARDAR PERFIL (Usa PUT /profile/update)
+  // ✅ 1. GUARDAR PERFIL
   const saveProfile = async () => {
     if (!name.trim() || !email.trim()) {
       Alert.alert("Error", "Nombre y correo son obligatorios.");
@@ -44,7 +44,7 @@ export default function ProfileScreenSuperAdmin() {
       }, { headers });
 
       Alert.alert("Éxito", "Perfil actualizado.");
-      await loadToken(); // Recargar datos en la app
+      await loadToken(); 
     } catch (e) {
       console.log(e.response?.data);
       Alert.alert("Error", e.response?.data?.message || "No se pudo actualizar.");
@@ -53,7 +53,7 @@ export default function ProfileScreenSuperAdmin() {
     }
   };
 
-  // ✅ 2. CAMBIAR CONTRASEÑA (Usa POST /profile/change-password)
+  // ✅ 2. CAMBIAR CONTRASEÑA
   const changePassword = async () => {
     if (!currentPassword || !newPassword) {
       Alert.alert("Error", "Completa todos los campos.");
@@ -70,7 +70,6 @@ export default function ProfileScreenSuperAdmin() {
 
     setSavingPass(true);
     try {
-      // Importante: Enviamos new_password_confirmation para que Laravel no de error
       await axios.post(`${API_URL}/profile/change-password`,
         {
           current_password: currentPassword,
@@ -93,66 +92,120 @@ export default function ProfileScreenSuperAdmin() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-        <Title style={[styles.title, { color: theme.colors.primary }]}>Mi Perfil</Title>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        
+        {/* HEADER CON AVATAR */}
+        <View style={styles.headerContainer}>
+            <View style={{flexDirection:'row', alignItems:'center', marginBottom: 10}}>
+                <Avatar.Icon size={60} icon="account-circle" style={{backgroundColor: theme.colors.primary}} />
+                <View style={{marginLeft: 15}}>
+                    <Title style={[styles.title, { color: theme.colors.primary }]}>Mi Perfil</Title>
+                    <Paragraph style={{opacity:0.7}}>Administrador Global</Paragraph>
+                </View>
+            </View>
+        </View>
 
-        {/* Tarjeta Info */}
+        {/* Tarjeta Info General */}
         <Card style={styles.card}>
           <Card.Content>
-            <Title>{user?.name}</Title>
-            <Paragraph style={{ opacity: 0.7 }}>{user?.email}</Paragraph>
-            <Divider style={{ marginVertical: 12 }} />
             <View style={styles.rowBetween}>
-              <Paragraph>Modo Oscuro</Paragraph>
-              <Switch value={isDark} onValueChange={toggleTheme} />
+                <View>
+                    <Title style={{fontSize:18}}>{user?.name}</Title>
+                    <Paragraph style={{ opacity: 0.7, fontSize:13 }}>{user?.email}</Paragraph>
+                </View>
+                <Switch value={isDark} onValueChange={toggleTheme} color={theme.colors.primary} />
+            </View>
+            <View style={{flexDirection:'row', alignItems:'center', justifyContent:'flex-end', marginTop:5}}>
+                <Text style={{fontSize:10, color:'#888', marginRight:5}}>{isDark ? "Modo Oscuro" : "Modo Claro"}</Text>
             </View>
           </Card.Content>
         </Card>
 
         {/* Editar Datos */}
-        <Card style={styles.card}>
-          <Card.Content>
-            <Title style={{ marginBottom: 10 }}>Editar Información</Title>
-            <TextInput label="Nombre" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
-            <TextInput label="Correo" value={email} onChangeText={setEmail} mode="outlined" style={styles.input} autoCapitalize="none" />
-            <TextInput label="Teléfono" value={phone} onChangeText={setPhone} mode="outlined" style={styles.input} keyboardType="phone-pad" />
-            
-            <Button mode="contained" onPress={saveProfile} loading={savingProfile} disabled={savingProfile}>
-              Guardar Cambios
-            </Button>
-          </Card.Content>
-        </Card>
+        <View style={styles.sectionContainer}>
+            <Paragraph style={styles.sectionTitle}>INFORMACIÓN PERSONAL</Paragraph>
+            <Card style={styles.card}>
+            <Card.Content>
+                <TextInput label="Nombre" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
+                <TextInput label="Correo" value={email} onChangeText={setEmail} mode="outlined" style={styles.input} autoCapitalize="none" />
+                <TextInput label="Teléfono" value={phone} onChangeText={setPhone} mode="outlined" style={styles.input} keyboardType="phone-pad" />
+                
+                <Button 
+                    mode="contained" 
+                    onPress={saveProfile} 
+                    loading={savingProfile} 
+                    disabled={savingProfile}
+                    style={styles.button}
+                    contentStyle={{height: 50}}
+                >
+                Guardar Cambios
+                </Button>
+            </Card.Content>
+            </Card>
+        </View>
 
         {/* Cambiar Contraseña */}
-        <Card style={styles.card}>
-          <Card.Content>
-            <Title style={{ marginBottom: 10 }}>Seguridad</Title>
-            <TextInput label="Contraseña Actual" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry mode="outlined" style={styles.input} />
-            <TextInput label="Nueva Contraseña" value={newPassword} onChangeText={setNewPassword} secureTextEntry mode="outlined" style={styles.input} />
-            <TextInput label="Confirmar Nueva" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry mode="outlined" style={styles.input} />
+        <View style={styles.sectionContainer}>
+            <Paragraph style={styles.sectionTitle}>SEGURIDAD</Paragraph>
+            <Card style={styles.card}>
+            <Card.Content>
+                <TextInput label="Contraseña Actual" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry mode="outlined" style={styles.input} />
+                <TextInput label="Nueva Contraseña" value={newPassword} onChangeText={setNewPassword} secureTextEntry mode="outlined" style={styles.input} />
+                <TextInput label="Confirmar Nueva" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry mode="outlined" style={styles.input} />
 
-            <Button mode="contained" onPress={changePassword} loading={savingPass} disabled={savingPass} buttonColor="#555">
-              Cambiar Contraseña
-            </Button>
-          </Card.Content>
-        </Card>
+                <Button 
+                    mode="contained" 
+                    onPress={changePassword} 
+                    loading={savingPass} 
+                    disabled={savingPass} 
+                    buttonColor="#555"
+                    style={styles.button}
+                    contentStyle={{height: 50}}
+                >
+                Cambiar Contraseña
+                </Button>
+            </Card.Content>
+            </Card>
+        </View>
 
-        <View style={{ paddingHorizontal: 16 }}>
-            <Button mode="contained" onPress={logout} buttonColor="#D32F2F" icon="logout" style={{ marginTop: 10 }}>
+        <View style={{ paddingHorizontal: 20, marginTop: 10 }}>
+            <Button 
+                mode="outlined" 
+                onPress={logout} 
+                textColor="#D32F2F" 
+                icon="logout" 
+                style={{borderColor: '#D32F2F', borderRadius: 12, borderWidth: 1}}
+                contentStyle={{height: 48}}
+            >
                 Cerrar Sesión
             </Button>
         </View>
 
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  title: { fontSize: 26, fontWeight: "bold", textAlign: "center", marginTop: 20, marginBottom: 10 },
-  card: { marginHorizontal: 16, marginVertical: 8, borderRadius: 12, elevation: 2, backgroundColor: 'white' },
+  safeArea: { 
+      flex: 1, 
+      // Ajuste para bajar el contenido de la barra de estado
+      paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 20 : 0 
+  },
+  headerContainer: {
+      paddingHorizontal: 20,
+      marginTop: 10,
+      marginBottom: 5
+  },
+  title: { fontSize: 28, fontWeight: "bold" },
+  
+  sectionContainer: { marginTop: 20 },
+  sectionTitle: { marginLeft: 20, marginBottom: 5, fontSize: 12, fontWeight: 'bold', color: '#666' },
+
+  card: { marginHorizontal: 16, borderRadius: 16, elevation: 3, backgroundColor: 'white', marginBottom: 5 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  input: { marginBottom: 10, backgroundColor: 'white', height: 45 },
+  
+  input: { marginBottom: 12, backgroundColor: 'white' },
+  button: { marginTop: 5, borderRadius: 12 }
 });

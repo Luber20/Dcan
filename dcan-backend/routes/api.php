@@ -22,6 +22,8 @@ Route::get('/clinics/{clinic}', [ClinicController::class, 'show']);
 
 Route::get('/veterinarians/{id}/availability', [AvailabilityController::class, 'getPublicAvailability']);
 
+Route::get('/catalogs', [App\Http\Controllers\Api\CatalogController::class, 'index']);
+
 // ==========================================
 // 🔐 RUTAS PROTEGIDAS (Sanctum)
 // ==========================================
@@ -122,5 +124,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/admin/users/{user}', [ClinicController::class, 'updateGlobalUser']);
         Route::delete('/admin/users/{user}', [ClinicController::class, 'deleteGlobalUser']);
         Route::patch('/admin/users/{user}/toggle', [ClinicController::class, 'toggleClient']);
+
+        // ... Dentro del grupo superadmin ...
+        Route::post('/admin/species', [App\Http\Controllers\Api\CatalogController::class, 'storeSpecies']);
+        Route::delete('/admin/species/{id}', [App\Http\Controllers\Api\CatalogController::class, 'deleteSpecies']);
+
+        Route::post('/admin/breeds', [App\Http\Controllers\Api\CatalogController::class, 'storeBreed']);
+        Route::delete('/admin/breeds/{id}', [App\Http\Controllers\Api\CatalogController::class, 'deleteBreed']);
     });
 });

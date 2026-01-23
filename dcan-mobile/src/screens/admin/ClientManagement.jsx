@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, FlatList, Alert } from "react-native";
-import { Title, Card, Paragraph, List, Button, TextInput, Dialog, Portal } from "react-native-paper";
+import { View, StyleSheet, FlatList, Alert, SafeAreaView, Platform, StatusBar } from "react-native";
+import { Title, Card, Paragraph, Button, TextInput, Dialog, Portal, FAB, Avatar, Text } from "react-native-paper";
 import axios from "axios";
 import { API_URL } from "../../config/api";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function ClientManagement() {
   const { user, token } = useAuth();
+  const { theme } = useTheme();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogVisible, setDialogVisible] = useState(false);
@@ -52,6 +54,7 @@ export default function ClientManagement() {
       { text: "Cancelar" },
       {
         text: "Eliminar",
+        style: "destructive",
         onPress: async () => {
           try {
             await axios.delete(`${API_URL}/clinic-clients/${clientId}`, {
@@ -72,7 +75,7 @@ export default function ClientManagement() {
       await axios.patch(`${API_URL}/clinic-clients/${clientId}/toggle`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      Alert.alert("Éxito", "Estado del cliente actualizado");
+      Alert.alert("Éxito", "Estado actualizado");
       fetchClients();
     } catch (error) {
       Alert.alert("Error", "No se pudo actualizar");
@@ -82,28 +85,45 @@ export default function ClientManagement() {
   const renderClient = ({ item }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <Paragraph>Nombre: {item.name}</Paragraph>
-        <Paragraph>Teléfono: {item.phone}</Paragraph>
-        <Paragraph>Email: {item.email}</Paragraph>
-        <Paragraph>Mascotas: {item.pets_count}</Paragraph>
-        <Paragraph>Citas totales: {item.appointments_count}</Paragraph>
-        <Paragraph>Última cita: {item.last_appointment}</Paragraph>
-        <Paragraph>Servicio más usado: {item.most_used_service}</Paragraph>
-        <Paragraph>Último veterinario: {item.last_veterinarian}</Paragraph>
-        <Paragraph>Estado: {item.is_restricted ? "Restringido" : "Activo"}</Paragraph>
+        <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
+            <Avatar.Text size={40} label={item.name.substring(0,2).toUpperCase()} style={{backgroundColor: theme.colors.primary}} />
+            <View style={{marginLeft: 10}}>
+                <Title style={{fontSize:18}}>{item.name}</Title>
+                <Paragraph style={{fontSize:12, color:'#666'}}>{item.email}</Paragraph>
+            </View>
+        </View>
+        
+        <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+                <Text style={styles.statVal}>{item.pets_count}</Text>
+                <Text style={styles.statLabel}>Mascotas</Text>
+            </View>
+            <View style={styles.statItem}>
+                <Text style={styles.statVal}>{item.appointments_count}</Text>
+                <Text style={styles.statLabel}>Citas</Text>
+            </View>
+            <View style={[styles.statItem, {borderRightWidth:0}]}>
+                <Text style={[styles.statVal, {color: item.is_restricted ? 'red' : 'green'}]}>
+                    {item.is_restricted ? "Restr." : "Activo"}
+                </Text>
+                <Text style={styles.statLabel}>Estado</Text>
+            </View>
+        </View>
+
         {item.pets && item.pets.length > 0 && (
-          <View>
-            <Paragraph style={styles.subTitle}>Mascotas:</Paragraph>
+          <View style={{marginTop: 10, backgroundColor: '#f5f5f5', padding: 8, borderRadius: 8}}>
+            <Text style={{fontWeight:'bold', fontSize:12, marginBottom:4}}>Mascotas:</Text>
             {item.pets.map((pet) => (
-              <Paragraph key={pet.id}>- {pet.name} ({pet.species}, {pet.breed})</Paragraph>
+              <Text key={pet.id} style={{fontSize:12}}>• {pet.name} ({pet.species})</Text>
             ))}
           </View>
         )}
+
         <View style={styles.buttonRow}>
           <Button mode="outlined" onPress={() => handleToggleClient(item.id)} style={styles.button}>
-            {item.is_restricted ? "Activar" : "Restringir"}
+            {item.is_restricted ? "Activar" : "Bloquear"}
           </Button>
-          <Button mode="contained" onPress={() => handleDeleteClient(item.id)} buttonColor="red" style={styles.button}>
+          <Button mode="outlined" textColor="red" onPress={() => handleDeleteClient(item.id)} style={[styles.button, {borderColor:'red'}]}>
             Eliminar
           </Button>
         </View>
@@ -111,30 +131,39 @@ export default function ClientManagement() {
     </Card>
   );
 
-  if (loading) {
-    return <View style={styles.center}><Paragraph>Cargando...</Paragraph></View>;
-  }
+  if (loading) return <View style={styles.center}><Paragraph>Cargando clientes...</Paragraph></View>;
 
   return (
-    <View style={styles.container}>
-      <Title>Gestión de Clientes</Title>
-      <Button mode="contained" onPress={() => setDialogVisible(true)} style={styles.addButton}>
-        Crear Nuevo Cliente
-      </Button>
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background}]}>
+      <View style={styles.headerContainer}>
+         <Title style={[styles.headerTitle, { color: theme.colors.primary }]}>Clientes</Title>
+         <Paragraph>Administración de usuarios</Paragraph>
+      </View>
+
       <FlatList
         data={clients}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderClient}
-        ListEmptyComponent={<Paragraph>No hay clientes</Paragraph>}
+        contentContainerStyle={{padding: 16, paddingBottom: 80}}
+        ListEmptyComponent={<Paragraph style={{textAlign:'center', marginTop:20}}>No hay clientes registrados.</Paragraph>}
       />
+      
+      <FAB
+        style={[styles.fab, {backgroundColor: theme.colors.primary}]}
+        icon="plus"
+        label="Nuevo Cliente"
+        onPress={() => setDialogVisible(true)}
+        color="white"
+      />
+
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title>Crear Cliente</Dialog.Title>
+          <Dialog.Title>Nuevo Cliente</Dialog.Title>
           <Dialog.Content>
-            <TextInput label="Nombre" value={newClient.name} onChangeText={(text) => setNewClient({ ...newClient, name: text })} />
-            <TextInput label="Email" value={newClient.email} onChangeText={(text) => setNewClient({ ...newClient, email: text })} keyboardType="email-address" />
-            <TextInput label="Contraseña" value={newClient.password} onChangeText={(text) => setNewClient({ ...newClient, password: text })} secureTextEntry />
-            <TextInput label="Teléfono" value={newClient.phone} onChangeText={(text) => setNewClient({ ...newClient, phone: text })} />
+            <TextInput label="Nombre" value={newClient.name} onChangeText={(text) => setNewClient({ ...newClient, name: text })} style={styles.input} mode="outlined"/>
+            <TextInput label="Email" value={newClient.email} onChangeText={(text) => setNewClient({ ...newClient, email: text })} keyboardType="email-address" style={styles.input} mode="outlined"/>
+            <TextInput label="Contraseña" value={newClient.password} onChangeText={(text) => setNewClient({ ...newClient, password: text })} secureTextEntry style={styles.input} mode="outlined"/>
+            <TextInput label="Teléfono" value={newClient.phone} onChangeText={(text) => setNewClient({ ...newClient, phone: text })} style={styles.input} mode="outlined"/>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setDialogVisible(false)}>Cancelar</Button>
@@ -142,16 +171,22 @@ export default function ClientManagement() {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1, paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 10 : 0 },
+  headerContainer: { paddingHorizontal: 20, paddingBottom: 10 },
+  headerTitle: { fontSize: 26, fontWeight: 'bold' },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  card: { marginBottom: 16 },
-  subTitle: { fontWeight: "bold", marginTop: 8 },
-  buttonRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
-  button: { flex: 1, marginHorizontal: 4 },
-  addButton: { marginBottom: 16 },
+  card: { marginBottom: 12, borderRadius: 16, elevation: 2, backgroundColor: 'white' },
+  statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#eee', paddingVertical: 8 },
+  statItem: { flex: 1, alignItems: 'center', borderRightWidth: 1, borderColor: '#eee' },
+  statVal: { fontWeight: 'bold', fontSize: 16 },
+  statLabel: { fontSize: 10, color: '#888' },
+  buttonRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 15, gap: 10 },
+  button: { flex: 1 },
+  input: { marginBottom: 10, backgroundColor: 'white' },
+  fab: { position: 'absolute', margin: 16, right: 0, bottom: 0 },
 });
