@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, Text } from "react-native";
+import { View, ActivityIndicator, Text, Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -64,8 +64,7 @@ export default function ClientTabs({ navigation }) {
       const response = await axios.get(`${API_URL}/my-menu`);
       setMenus(response.data);
     } catch (error) {
-      // 👇 ESTE LOG ES IMPORTANTE PARA VER EL ERROR REAL
-      console.log("❌ ERROR 500 DETALLADO:", error.response?.data);
+      console.log("❌ ERROR:", error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -78,7 +77,6 @@ export default function ClientTabs({ navigation }) {
     return <Ionicons name={iconName} size={size} color={color} />;
   };
 
-  // CASO 1: CARGANDO
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -88,53 +86,41 @@ export default function ClientTabs({ navigation }) {
     );
   }
 
-  // CASO 2: ERROR O SIN MENÚS
   if (!menus || menus.length === 0) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
         <MaterialCommunityIcons name="alert-circle-outline" size={60} color="#FFA500" />
-        <Text style={{fontSize: 18, fontWeight: 'bold', marginTop: 10, textAlign: 'center'}}>
-          No se encontraron menús
-        </Text>
-        <Text style={{textAlign: 'center', color: '#666', marginTop: 5, marginBottom: 20}}>
-          Tu usuario no tiene pestañas asignadas.
-        </Text>
-        
-        <Button 
-            mode="contained" 
-            onPress={logout} 
-            style={{backgroundColor: "#2E8B57"}}
-        >
-            Cerrar Sesión
-        </Button>
+        <Text style={{fontSize: 18, fontWeight: 'bold', marginTop: 10, textAlign: 'center'}}>No se encontraron menús</Text>
+        <Button mode="contained" onPress={logout} style={{backgroundColor: "#2E8B57", marginTop: 20}}>Cerrar Sesión</Button>
       </View>
     );
   }
 
-  // CASO 3: ÉXITO
   return (
     <Tab.Navigator
       screenOptions={{
         headerRight: () => <HeaderRightLogout navigation={navigation} />,
-        headerStyle: { backgroundColor: "#2E8B57", height: 100 },
+        headerStyle: { backgroundColor: "#2E8B57", height: Platform.OS === 'ios' ? 110 : 90 }, // Header más alto
         headerTintColor: "#fff",
         headerTitleStyle: { fontWeight: "bold", fontSize: 22 },
         tabBarActiveTintColor: "#2E8B57",
         tabBarInactiveTintColor: "#888",
-        tabBarStyle: { 
-          height: 80,
-          paddingBottom: 10,
-          paddingTop: 10, 
-          borderTopWidth: 0, 
+        
+        // ✅ AQUÍ ESTÁ EL AJUSTE PARA SUBIR LOS TABS
+        tabBarStyle: {
+          backgroundColor: "#ffffff",
+          borderTopColor: "#eee",
+          borderTopWidth: 1,
           elevation: 10,
-          backgroundColor: "#fff"
+          height: Platform.OS === 'ios' ? 100 : 100, // Más alto
+          paddingBottom: Platform.OS === 'ios' ? 50 : 50, // Empuja los iconos hacia arriba
+          paddingTop: 10,
         },
         tabBarLabelStyle: { fontSize: 12, fontWeight: "600", marginBottom: 5 },
       }}
     >
       {menus.map((menu) => {
         const Component = SCREEN_COMPONENTS[menu.screen_name];
-
         if (!Component) return null;
 
         return (

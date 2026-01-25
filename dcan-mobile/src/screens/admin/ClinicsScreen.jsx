@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, StyleSheet, ScrollView, RefreshControl, SafeAreaView, Platform, StatusBar } from "react-native";
-import { Card, Title, Paragraph, Button, TextInput, FAB, Switch, Chip, HelperText, Text } from "react-native-paper";
+import { Card, Title, Paragraph, Button, TextInput, FAB, Switch, Chip, Text } from "react-native-paper";
 import axios from "axios";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -17,12 +17,17 @@ export default function ClinicsScreen() {
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  // Campos
+  // Campos existentes
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [ruc, setRuc] = useState("");
+  
+  // ✅ NUEVOS CAMPOS: Ubicación
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
 
@@ -57,14 +62,24 @@ export default function ClinicsScreen() {
   };
 
   const resetForm = () => {
-    setEditing(null); setName(""); setAddress(""); setPhone(""); setAdminEmail(""); setRuc(""); setError("");
+    setEditing(null); 
+    setName(""); setAddress(""); setPhone(""); setAdminEmail(""); setRuc(""); 
+    setLatitude(""); setLongitude(""); // ✅ Limpiar coordenadas
+    setError("");
   };
 
   const openCreate = () => { resetForm(); setOpenForm(true); };
 
   const openEdit = (clinic) => {
-    setEditing(clinic); setName(clinic.name || ""); setAddress(clinic.address || ""); setPhone(clinic.phone || "");
-    setAdminEmail(clinic.admin_email || clinic.adminEmail || ""); setRuc(clinic.ruc || "");
+    setEditing(clinic); 
+    setName(clinic.name || ""); 
+    setAddress(clinic.address || ""); 
+    setPhone(clinic.phone || "");
+    setAdminEmail(clinic.admin_email || clinic.adminEmail || ""); 
+    setRuc(clinic.ruc || "");
+    // ✅ Cargar coordenadas existentes (convirtiendo a string)
+    setLatitude(clinic.latitude ? String(clinic.latitude) : "");
+    setLongitude(clinic.longitude ? String(clinic.longitude) : "");
     setOpenForm(true);
   };
 
@@ -77,7 +92,17 @@ export default function ClinicsScreen() {
     if (!name.trim()) return setError("Nombre obligatorio.");
     setError("");
     try {
-      const payload = { name: name.trim(), address: address.trim(), phone: phone.trim(), admin_email: adminEmail.trim().toLowerCase(), ruc: ruc.trim() };
+      const payload = { 
+          name: name.trim(), 
+          address: address.trim(), 
+          phone: phone.trim(), 
+          admin_email: adminEmail.trim().toLowerCase(), 
+          ruc: ruc.trim(),
+          // ✅ Enviar coordenadas
+          latitude: latitude || null,
+          longitude: longitude || null
+      };
+
       if (editing) { await axios.put(`${API_URL}/admin/clinics/${editing.id}`, payload, { headers }); } 
       else { await axios.post(`${API_URL}/admin/clinics`, payload, { headers }); }
       setOpenForm(false); resetForm(); await fetchClinics();
@@ -161,6 +186,14 @@ export default function ClinicsScreen() {
                   <TextInput label="Teléfono" value={phone} onChangeText={setPhone} mode="outlined" style={styles.input} />
                   <TextInput label="Email Admin" value={adminEmail} onChangeText={setAdminEmail} mode="outlined" style={styles.input} autoCapitalize="none" />
                   <TextInput label="RUC" value={ruc} onChangeText={setRuc} mode="outlined" style={styles.input} />
+                  
+                  {/* ✅ NUEVOS CAMPOS: COORDENADAS */}
+                  <Paragraph style={{fontWeight:'bold', marginTop:5}}>Ubicación (Manual):</Paragraph>
+                  <View style={{flexDirection:'row', gap:10}}>
+                      <TextInput label="Latitud" value={latitude} onChangeText={setLatitude} mode="outlined" style={[styles.input, {flex:1}]} keyboardType="numeric" />
+                      <TextInput label="Longitud" value={longitude} onChangeText={setLongitude} mode="outlined" style={[styles.input, {flex:1}]} keyboardType="numeric" />
+                  </View>
+
                   <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
                     <Button mode="contained" onPress={saveClinic} style={{ flex: 1 }}>Guardar</Button>
                     <Button mode="outlined" onPress={() => { setOpenForm(false); resetForm(); }} style={{ flex: 1 }}>Cancelar</Button>
@@ -177,6 +210,13 @@ export default function ClinicsScreen() {
                       <Title style={{fontSize:18}}>{c.name}</Title>
                       <Paragraph style={styles.detail}>{c.address}</Paragraph>
                       <Paragraph style={styles.detail}>Admin: {c.admin_email}</Paragraph>
+                      
+                      {/* ✅ INDICADOR VISUAL SI TIENE GPS */}
+                      {c.latitude && c.longitude ? (
+                          <Chip icon="map-marker-check" style={{alignSelf:'flex-start', marginTop:5, height:26}} textStyle={{fontSize:10, lineHeight:14}}>GPS Activo</Chip>
+                      ) : (
+                          <Chip icon="map-marker-off" style={{alignSelf:'flex-start', marginTop:5, height:26, backgroundColor:'#eee'}} textStyle={{fontSize:10, lineHeight:14}}>Sin GPS</Chip>
+                      )}
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
                       <Switch value={!!c.is_active} onValueChange={() => toggleClinic(c)} />

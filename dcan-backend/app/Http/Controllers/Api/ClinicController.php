@@ -45,6 +45,9 @@ class ClinicController extends Controller
             'hours'       => 'nullable|string|max:255',
             'admin_email' => 'nullable|email|max:255',
             'ruc'         => 'nullable|string|max:50',
+            // ✅ CORRECCIÓN: Validamos coordenadas
+            'latitude'    => 'nullable|numeric',  
+            'longitude'   => 'nullable|numeric',
         ]);
 
         $clinic = Clinic::create([
@@ -57,6 +60,9 @@ class ClinicController extends Controller
             'admin_email' => $data['admin_email'] ?? null,
             'ruc'         => $data['ruc'] ?? null,
             'is_active'   => true,
+            // ✅ CORRECCIÓN: AHORA SÍ SE GUARDAN EN LA BD
+            'latitude'    => $data['latitude'] ?? null,
+            'longitude'   => $data['longitude'] ?? null,
         ]);
 
         return response()->json(['message' => 'Clínica creada', 'clinic' => $clinic], 201);
@@ -86,6 +92,9 @@ class ClinicController extends Controller
             'ruc'         => 'sometimes|nullable|string|max:50',
             'photo_url'   => 'sometimes|nullable|string',
             'description' => 'sometimes|nullable|string',
+            // ✅ CORRECCIÓN CRÍTICA: Agregamos validación para que update() las acepte
+            'latitude'    => 'sometimes|nullable|numeric',
+            'longitude'   => 'sometimes|nullable|numeric',
         ]);
 
         $clinic->update($data);
@@ -154,7 +163,6 @@ class ClinicController extends Controller
 
     public function toggleClient(Request $request, User $user)
     {
-        // Funciona tanto para AdminClínica (con validación) como para SuperAdmin
         if ($request->user()->hasRole('clinic_admin')) {
              if($request->user()->clinic_id !== $user->clinic_id) return response()->json(['message' => 'No autorizado'], 403);
         }
@@ -196,54 +204,44 @@ class ClinicController extends Controller
     }
 
     // ==========================
-    // 3. 👑 SUPER ADMIN: GESTIÓN TOTAL USUARIOS (¡IMPORTANTE!)
+    // 3. 👑 SUPER ADMIN: GESTIÓN TOTAL USUARIOS
     // ==========================
 
-    // ✅ Esta es la función que te faltaba para EDITAR contraseña y rol
     public function updateGlobalUser(Request $request, User $user)
     {
-        // 1. Validar
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,'.$user->id,
             'phone' => 'nullable|string',
-            'password' => 'nullable|string|min:6', // Opcional
+            'password' => 'nullable|string|min:6',
             'role' => 'required|string',
-            'clinic_id' => 'nullable', // Puede ser nulo si es cliente o superadmin
+            'clinic_id' => 'nullable',
         ]);
 
-        // 2. Preparar datos
         $updateData = [
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'],
-            'clinic_id' => $data['clinic_id'] // Asignar la clínica si se envió
+            'clinic_id' => $data['clinic_id']
         ];
 
-        // 3. Encriptar contraseña solo si la enviaron
         if ($request->filled('password')) {
             $updateData['password'] = Hash::make($data['password']);
         }
 
-        // 4. Actualizar en BD
         $user->update($updateData);
-
-        // 5. Actualizar Rol
-        // Si usas Spatie Permissions:
         $user->syncRoles([$data['role']]);
 
         return response()->json(['message' => 'Usuario actualizado correctamente', 'user' => $user]);
     }
 
-    // ✅ Esta es la función que te faltaba para ELIMINAR usuarios globalmente
     public function deleteGlobalUser(Request $request, User $user)
     {
-        // Evitar suicidio digital (borrarse a sí mismo)
         if ($user->id === $request->user()->id) {
             return response()->json(['message' => 'No puedes eliminarte a ti mismo.'], 400);
         }
 
-        $user->forceDelete(); // forceDelete borra de verdad. Usa delete() si quieres papelera.
+        $user->forceDelete();
         return response()->json(['message' => 'Usuario eliminado correctamente']);
     }
 }

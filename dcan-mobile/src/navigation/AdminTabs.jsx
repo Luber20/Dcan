@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native"; // ✅ Importante para detectar si es Android/iOS
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,7 +54,23 @@ export default function AdminTabs() {
         headerStyle: { backgroundColor: "#2E8B57" },
         headerTintColor: "#fff",
         tabBarActiveTintColor: "#2E8B57",
-        tabBarStyle: { paddingBottom: 5, height: 60 },
+        tabBarInactiveTintColor: "#999",
+        
+        // ✅ AQUÍ ESTÁ EL AJUSTE PARA SUBIR LOS TABS
+        tabBarStyle: {
+          backgroundColor: "#ffffff",
+          borderTopColor: "#eee",
+          borderTopWidth: 1,
+          elevation: 10,
+          height: Platform.OS === 'ios' ? 100 : 100, // Más alto
+          paddingBottom: Platform.OS === 'ios' ? 50 : 50, // Empuja los iconos hacia arriba
+          paddingTop: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+          marginBottom: 5
+        },
       }}
     >
       <Tab.Screen

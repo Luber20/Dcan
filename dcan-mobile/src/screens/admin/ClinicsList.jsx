@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Platform, StatusBar } from "react-native";
-import { Title, Card, Paragraph, Chip } from "react-native-paper";
+import { View, StyleSheet, FlatList, SafeAreaView, Platform, StatusBar, Linking, Alert } from "react-native";
+import { Title, Card, Paragraph, Chip, Button, Avatar } from "react-native-paper";
 import axios from "axios";
 import { API_URL } from "../../config/api";
 import { useAuth } from "../../context/AuthContext";
@@ -31,26 +31,63 @@ export default function ClinicsList() {
     }
   };
 
+  // 🗺️ FUNCIÓN ABRIR MAPA
+  const openMap = (lat, lng, label) => {
+    if (!lat || !lng) {
+        Alert.alert("Sin ubicación", "Esta clínica no tiene coordenadas GPS guardadas.");
+        return;
+    }
+    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+    const latLng = `${lat},${lng}`;
+    const url = Platform.select({
+      ios: `${scheme}${label}@${latLng}`,
+      android: `${scheme}${latLng}(${label})`
+    });
+    Linking.openURL(url);
+  };
+
   const renderClinic = ({ item }) => (
-    <TouchableOpacity onPress={() => navigation.navigate('ClinicEdit', { clinicId: item.id })}>
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
-              <View style={{flex: 1}}>
-                  <Title style={{fontWeight:'bold'}}>{item.name}</Title>
-                  <Paragraph style={{color:'#666'}}>{item.address}</Paragraph>
-              </View>
-              <Chip icon={item.is_active ? "check" : "close"} style={{backgroundColor: item.is_active ? '#e8f5e9' : '#ffebee'}}>
-                {item.is_active ? "Activa" : "Inactiva"}
-              </Chip>
-          </View>
-          <View style={{marginTop: 10}}>
-             <Paragraph style={{fontSize:12}}>📞 {item.phone || "Sin teléfono"}</Paragraph>
-             <Paragraph style={{fontSize:12}}>🕒 {item.hours || "Sin horarios"}</Paragraph>
-          </View>
-        </Card.Content>
-      </Card>
-    </TouchableOpacity>
+    <Card style={styles.card}>
+      <Card.Content>
+        {/* Cabecera */}
+        <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+            <View style={{flex: 1}}>
+                <Title style={{fontWeight:'bold'}}>{item.name}</Title>
+                <Paragraph style={{color:'#666'}}>{item.address}</Paragraph>
+            </View>
+            <Chip icon={item.is_active ? "check" : "close"} style={{backgroundColor: item.is_active ? '#e8f5e9' : '#ffebee'}}>
+              {item.is_active ? "Activa" : "Inactiva"}
+            </Chip>
+        </View>
+
+        {/* Info */}
+        <View style={{marginTop: 10, marginBottom: 15}}>
+           <Paragraph style={{fontSize:12}}>📞 {item.phone || "Sin teléfono"}</Paragraph>
+           <Paragraph style={{fontSize:12}}>🕒 {item.hours || "Sin horarios"}</Paragraph>
+        </View>
+
+        {/* Botones de Acción */}
+        <View style={{flexDirection: 'row', justifyContent: 'space-between', gap: 10}}>
+            <Button 
+                mode="outlined" 
+                onPress={() => navigation.navigate('ClinicEdit', { clinicId: item.id })}
+                style={{flex: 1, borderColor: '#ccc'}}
+                textColor="#555"
+            >
+                Editar
+            </Button>
+            <Button 
+                mode="contained" 
+                icon="map-marker"
+                onPress={() => openMap(item.latitude, item.longitude, item.name)}
+                style={{flex: 1, backgroundColor: '#4285F4'}} // Azul Maps
+            >
+                Ver Mapa
+            </Button>
+        </View>
+
+      </Card.Content>
+    </Card>
   );
 
   if (loading) return <View style={styles.center}><Paragraph>Cargando clínicas...</Paragraph></View>;
@@ -59,7 +96,7 @@ export default function ClinicsList() {
     <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background}]}>
       <View style={styles.headerContainer}>
         <Title style={[styles.headerTitle, { color: theme.colors.primary }]}>Mis Clínicas</Title>
-        <Paragraph>Selecciona una para editar</Paragraph>
+        <Paragraph>Selecciona una acción</Paragraph>
       </View>
       <FlatList
         data={clinics}

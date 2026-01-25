@@ -23,7 +23,7 @@ class Clinic extends Model
         'photo_url', 
         'description',
         'latitude',
-        'longitude'
+        'longitude',
     ];
 
     // Esto asegura que los tipos de datos sean correctos
