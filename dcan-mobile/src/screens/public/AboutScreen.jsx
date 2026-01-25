@@ -16,7 +16,11 @@ const AboutScreen = () => {
       </Text>
 
       <Text style={styles.author}>
-        Desarrollado por: Eulises Sánchez
+        Desarrollado por: 
+        Eulises Sánchez
+        Luber Alexis
+        Johan Chavez
+        Carlos Macias
       </Text>
     </View>
   );

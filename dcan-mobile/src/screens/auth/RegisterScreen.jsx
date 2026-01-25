@@ -8,9 +8,8 @@ export default function RegisterScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { registerAction } = useAuth();
-  
-  // Obtenemos la clínica seleccionada
-  const selectedClinic = route.params?.selectedClinic || null;
+
+const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedClinic : null;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -23,15 +22,9 @@ export default function RegisterScreen() {
     const newErrors = {};
     if (!name.trim()) newErrors.name = "El nombre es obligatorio";
     if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email)) newErrors.email = "Email inválido";
-    if (password.length < 6) newErrors.password = "Mínimo 6 caracteres";
+    if (password.length < 8) newErrors.password = "Mínimo 8 caracteres";
     if (password !== passwordConfirmation) newErrors.passwordConfirmation = "Las contraseñas no coinciden";
-    
-    // Validación crítica: Debe haber una clínica
-    if (!selectedClinic) {
-        Alert.alert("Error", "No se ha seleccionado una clínica para el registro.");
-        return false;
-    }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -41,22 +34,31 @@ export default function RegisterScreen() {
     if (!validateForm()) return;
 
     setLoading(true);
+
     const regData = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password,
       password_confirmation: passwordConfirmation,
-      clinic_id: selectedClinic.id, // 👈 FORZAMOS EL ID DE LA CLÍNICA SELECCIONADA
+      ...(selectedClinic ? { clinic_id: selectedClinic.id } : {}),
     };
 
     const result = await registerAction(regData);
 
     if (result.success) {
-      Alert.alert("¡Bienvenido!", `Te has registrado exitosamente en ${selectedClinic.name}.`);
-      // AuthContext manejará la redirección automática
+      Alert.alert(
+        "¡Bienvenido!",
+        selectedClinic
+          ? `Te has registrado exitosamente en ${selectedClinic.name}.`
+          : "Te has registrado exitosamente."
+      );
+      // puedes dejarlo así, App.js cambiará por el user/token
     } else {
       if (result.errors) {
         setErrors(result.errors);
+
+        // ✅ AQUÍ el cambio clave: mostrar mensaje también
+        Alert.alert("Error", result.message || "Revisa los campos e intenta nuevamente.");
       } else {
         Alert.alert("Error", result.message || "No se pudo registrar.");
       }
@@ -68,37 +70,80 @@ export default function RegisterScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
       <ScrollView contentContainerStyle={styles.inner}>
         <Image source={require("../../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
-        
+
         <Title style={styles.title}>Crear Cuenta</Title>
-        
-        {/* ✅ AVISO DE CLÍNICA */}
+
         {selectedClinic ? (
-            <View style={styles.clinicBadge}>
-                <Paragraph style={{textAlign: 'center', color: '#155724'}}>
-                    Registrándose en: <Paragraph style={{fontWeight: 'bold', color: '#155724'}}>{selectedClinic.name}</Paragraph>
-                </Paragraph>
-            </View>
+          <View style={styles.clinicBadge}>
+            <Paragraph style={{ textAlign: "center", color: "#155724" }}>
+              Registrándose en:{" "}
+              <Paragraph style={{ fontWeight: "bold", color: "#155724" }}>{selectedClinic.name}</Paragraph>
+            </Paragraph>
+          </View>
         ) : (
-            <HelperText type="error" visible={true} style={{textAlign:'center'}}>
-                Error: No se seleccionó clínica.
-            </HelperText>
+          <HelperText type="info" visible={true} style={{ textAlign: "center" }}>
+            Registro general (sin clínica seleccionada).
+          </HelperText>
         )}
 
         <Card style={styles.card}>
           <Card.Content>
-            <TextInput label="Nombre completo" value={name} onChangeText={setName} mode="outlined" style={styles.input} error={!!errors.name} theme={{roundness: 10}} />
+            <TextInput
+              label="Nombre completo"
+              value={name}
+              onChangeText={setName}
+              mode="outlined"
+              style={styles.input}
+              error={!!errors.name}
+              theme={{ roundness: 10 }}
+            />
             <HelperText type="error" visible={!!errors.name}>{errors.name}</HelperText>
 
-            <TextInput label="Email" value={email} onChangeText={setEmail} mode="outlined" style={styles.input} error={!!errors.email} theme={{roundness: 10}} autoCapitalize="none" keyboardType="email-address"/>
+            <TextInput
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              mode="outlined"
+              style={styles.input}
+              error={!!errors.email}
+              theme={{ roundness: 10 }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
             <HelperText type="error" visible={!!errors.email}>{errors.email}</HelperText>
 
-            <TextInput label="Contraseña" value={password} onChangeText={setPassword} secureTextEntry mode="outlined" style={styles.input} error={!!errors.password} theme={{roundness: 10}} />
+            <TextInput
+              label="Contraseña"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              mode="outlined"
+              style={styles.input}
+              error={!!errors.password}
+              theme={{ roundness: 10 }}
+            />
             <HelperText type="error" visible={!!errors.password}>{errors.password}</HelperText>
 
-            <TextInput label="Confirmar contraseña" value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry mode="outlined" style={styles.input} error={!!errors.passwordConfirmation} theme={{roundness: 10}} />
+            <TextInput
+              label="Confirmar contraseña"
+              value={passwordConfirmation}
+              onChangeText={setPasswordConfirmation}
+              secureTextEntry
+              mode="outlined"
+              style={styles.input}
+              error={!!errors.passwordConfirmation}
+              theme={{ roundness: 10 }}
+            />
             <HelperText type="error" visible={!!errors.passwordConfirmation}>{errors.passwordConfirmation}</HelperText>
 
-            <Button mode="contained" onPress={handleRegister} loading={loading} style={styles.button} buttonColor="#2E8B57" disabled={!selectedClinic || loading}>
+            <Button
+              mode="contained"
+              onPress={handleRegister}
+              loading={loading}
+              style={styles.button}
+              buttonColor="#2E8B57"
+              disabled={loading}
+            >
               Registrarse ahora
             </Button>
 
@@ -117,18 +162,9 @@ const styles = StyleSheet.create({
   inner: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 20 },
   logo: { width: 90, height: 90, alignSelf: "center", marginBottom: 10 },
   title: { fontSize: 28, fontWeight: "bold", textAlign: "center", color: "#2E8B57", marginBottom: 10 },
-  
-  clinicBadge: {
-    backgroundColor: '#d4edda',
-    borderColor: '#c3e6cb',
-    borderWidth: 1,
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 20
-  },
-  
-  card: { borderRadius: 20, elevation: 8, backgroundColor: 'white' },
-  input: { marginBottom: 2, backgroundColor: 'white' },
+  clinicBadge: { backgroundColor: "#d4edda", borderColor: "#c3e6cb", borderWidth: 1, padding: 10, borderRadius: 10, marginBottom: 20 },
+  card: { borderRadius: 20, elevation: 8, backgroundColor: "white" },
+  input: { marginBottom: 2, backgroundColor: "white" },
   button: { marginTop: 10, paddingVertical: 5 },
-  link: { marginTop: 10, color: '#2E8B57' },
+  link: { marginTop: 10, color: "#2E8B57" },
 });

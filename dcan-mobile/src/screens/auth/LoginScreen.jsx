@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Image, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+} from "react-native";
 import { TextInput, Button, Title, Card, Paragraph } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
 import { useRoute } from "@react-navigation/native";
@@ -10,11 +17,11 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
-  const { login, logout } = useAuth(); 
 
-  // Obtenemos la clínica si venimos desde "Agendar"
-  const selectedClinic = route.params?.selectedClinic || null;
+  const { login, logout } = useAuth();
+
+  // ✅ Si vienes desde "Agendar" (solo si trae id)
+  const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedClinic : null;
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -26,69 +33,44 @@ export default function LoginScreen({ navigation }) {
     const result = await login(email.trim().toLowerCase(), password);
     setLoading(false);
 
-    if (result.success) {
-      const user = result.user;
-      const roles = user.roles || [];
-      
-      // --- 1. DETECCIÓN DE ROLES ---
-      const isSuperAdmin = roles.some(r => r.name === 'superadmin' || r.name === 'super_admin');
-      const isClinicAdmin = roles.some(r => r.name === 'admin' || r.name === 'clinic_admin');
-      const isVet = roles.some(r => r.name === 'veterinario' || r.name === 'veterinarian');
-      
-      // --- 2. VALIDACIÓN DE SEGURIDAD ---
-      // Si hay clínica seleccionada Y NO es SuperAdmin, verificamos pertenencia
-      if (selectedClinic && !isSuperAdmin) {
-          const userClinicId = Number(user.clinic_id); 
-          const targetClinicId = Number(selectedClinic.id);
-
-          if (userClinicId !== targetClinicId) {
-              await logout(); 
-              Alert.alert(
-                  "Acceso Restringido 🚫", 
-                  `Tus credenciales pertenecen a otra veterinaria.\nNo puedes entrar a "${selectedClinic.name}" con esta cuenta.`
-              );
-              return; 
-          }
-      }
-      
-      // --- 3. REDIRECCIÓN AUTOMÁTICA (LO QUE FALTABA) ---
-      // Esto es lo que hace que entres de una vez a la pantalla correcta
-      if (selectedClinic) {
-          setTimeout(() => {
-              try {
-                  let targetRoute = 'ClientDashboard'; // Por defecto
-                  let targetParams = { screen: "Citas", params: { screen: "Agendar" } };
-
-                  if (isSuperAdmin) {
-                      targetRoute = 'SuperAdminDashboard';
-                      targetParams = undefined;
-                  } else if (isClinicAdmin) {
-                      targetRoute = 'AdminDashboard';
-                      targetParams = undefined;
-                  } else if (isVet) {
-                      targetRoute = 'VetDashboard';
-                      targetParams = undefined;
-                  }
-
-                  // ¡Navegación forzada para no quedarse en la pantalla anterior!
-                  navigation.reset({
-                      index: 0,
-                      routes: [{ 
-                          name: targetRoute,
-                          params: targetParams
-                      }],
-                  });
-              } catch (e) {
-                  console.log("Error navegando:", e);
-                  // Si falla, intentamos navegación simple
-                  navigation.navigate("ClientDashboard");
-              }
-          }, 100);
-      }
-
-    } else {
+    if (!result.success) {
       Alert.alert("Error", result.message || "Credenciales incorrectas.");
+      return;
     }
+
+    const user = result.user;
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    const roleNames = roles
+      .map((r) => (typeof r === "string" ? r : r?.name))
+      .filter(Boolean)
+      .map((r) => String(r).toLowerCase().trim());
+
+    const isSuperAdmin = roleNames.includes("superadmin") || roleNames.includes("super_admin");
+    const isClinicAdmin = roleNames.includes("clinic_admin") || roleNames.includes("admin");
+    const isVet = roleNames.includes("veterinario") || roleNames.includes("veterinarian");
+
+    // ✅ Solo restringimos si es cuenta interna (admin/vet). Client queda libre.
+    if (selectedClinic && !isSuperAdmin && (isClinicAdmin || isVet)) {
+      const userClinicId = Number(user?.clinic_id);
+      const targetClinicId = Number(selectedClinic?.id);
+
+      // ✅ Si por error un admin/vet no tiene clinic_id, también bloquea
+      if (!userClinicId || userClinicId !== targetClinicId) {
+        await logout();
+        Alert.alert(
+          "Acceso Restringido 🚫",
+          `Tus credenciales pertenecen a otra veterinaria.\nNo puedes entrar a "${selectedClinic.name}" con esta cuenta.`
+        );
+        return;
+      }
+    }
+
+    /**
+     * ✅ IMPORTANTE:
+     * NO hacemos navigation.reset() aquí.
+     * Porque en este stack público NO existe ClientDashboard/AdminDashboard/etc.
+     * Al guardar user/token, App.js re-renderiza y entra SOLO a la zona privada.
+     */
   };
 
   return (
@@ -97,19 +79,28 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
     >
       <View style={styles.inner}>
-        <Image source={require("../../../assets/logo.png")} style={styles.logo} resizeMode="contain" />
+        <Image
+          source={require("../../../assets/logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
 
         <Title style={styles.title}>D’CAN</Title>
         <Paragraph style={styles.subtitle}>Veterinaria de confianza</Paragraph>
 
         {selectedClinic ? (
-            <View style={styles.clinicBadge}>
-                <Paragraph style={{color: '#155724', textAlign: 'center'}}>
-                    Ingresando a: <Paragraph style={{fontWeight: 'bold', color: '#155724'}}>{selectedClinic.name}</Paragraph>
-                </Paragraph>
-            </View>
+          <View style={styles.clinicBadge}>
+            <Paragraph style={{ color: "#155724", textAlign: "center" }}>
+              Ingresando a:{" "}
+              <Paragraph style={{ fontWeight: "bold", color: "#155724" }}>
+                {selectedClinic.name}
+              </Paragraph>
+            </Paragraph>
+          </View>
         ) : (
-            <Paragraph style={{color: '#666', marginBottom: 10, fontStyle:'italic'}}>Acceso General</Paragraph>
+          <Paragraph style={{ color: "#666", marginBottom: 10, fontStyle: "italic" }}>
+            Acceso General
+          </Paragraph>
         )}
 
         <Card style={styles.card}>
@@ -130,12 +121,17 @@ export default function LoginScreen({ navigation }) {
               label="Contraseña"
               value={password}
               onChangeText={setPassword}
-              secureTextEntry={!showPassword} 
+              secureTextEntry={!showPassword}
               mode="outlined"
               style={styles.input}
               theme={{ roundness: 12 }}
               left={<TextInput.Icon icon="lock-outline" />}
-              right={<TextInput.Icon icon={showPassword ? "eye-off" : "eye"} onPress={() => setShowPassword(!showPassword)} />}
+              right={
+                <TextInput.Icon
+                  icon={showPassword ? "eye-off" : "eye"}
+                  onPress={() => setShowPassword(!showPassword)}
+                />
+              }
             />
 
             <Button
@@ -153,11 +149,21 @@ export default function LoginScreen({ navigation }) {
 
             <Button
               mode="text"
-              onPress={() => navigation.navigate("Register", { selectedClinic: selectedClinic })}
+              onPress={() => navigation.navigate("Register", { selectedClinic })}
               style={styles.link}
               textColor="#2E8B57"
             >
               ¿No tienes cuenta? Registrarse
+            </Button>
+
+            {/* ✅ NUEVO BOTÓN: Registrar clínica */}
+            <Button
+              mode="outlined"
+              onPress={() => navigation.navigate("ClinicRequest")}
+              style={styles.linkOutline}
+              textColor="#2E8B57"
+            >
+              Registrar clínica
             </Button>
           </Card.Content>
         </Card>
@@ -173,17 +179,20 @@ const styles = StyleSheet.create({
   title: { fontSize: 36, fontWeight: "bold", color: "#2E8B57", marginBottom: 5 },
   subtitle: { fontSize: 16, color: "#666", marginBottom: 10, textAlign: "center" },
   clinicBadge: {
-      backgroundColor: '#d4edda',
-      paddingHorizontal: 15,
-      paddingVertical: 8,
-      borderRadius: 20,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: '#c3e6cb'
+    backgroundColor: "#d4edda",
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#c3e6cb",
   },
   card: { width: "100%", borderRadius: 20, elevation: 5, backgroundColor: "#fff" },
   input: { marginBottom: 16, backgroundColor: "#fff" },
   button: { marginTop: 10 },
   buttonContent: { height: 50 },
-  link: { marginTop: 15 }
+  link: { marginTop: 15 },
+
+  // ✅ estilo opcional para el botón outlined
+  linkOutline: { marginTop: 10, borderColor: "#2E8B57" },
 });

@@ -166,9 +166,7 @@ export default function Inicio({ navigation }) {
           </View>
         )}
 
-        {!!clinicsError && (
-          <Text style={{ color: "#B91C1C", marginTop: 10 }}>{clinicsError}</Text>
-        )}
+        {!!clinicsError && <Text style={{ color: "#B91C1C", marginTop: 10 }}>{clinicsError}</Text>}
       </View>
 
       {/* List */}
@@ -233,7 +231,8 @@ function Chip({ label, onPress }) {
   );
 }
 
-// ✅ AQUÍ ESTÁ EL CAMBIO CLAVE
+// ✅ ÚNICO CAMBIO: Agendar desde zona pública NO navega directo a ClientDashboard si no hay sesión.
+// Si hay sesión, navega a ClientDashboard. Si no, manda a Login con la clínica seleccionada.
 function ClinicCard({ clinic, navigation, user }) {
   return (
     <View style={styles.card}>
@@ -245,23 +244,19 @@ function ClinicCard({ clinic, navigation, user }) {
       {!!clinic.phone && <Text style={[styles.cardText, { opacity: 0.8 }]}>Tel: {clinic.phone}</Text>}
 
       <View style={styles.cardActions}>
-        
-        {/* 👉 BOTÓN CORREGIDO: Navega a Detalles y envía el objeto 'clinic' */}
-        <Pressable 
-            style={styles.btnPrimary} 
-            onPress={() => navigation.navigate("ClinicDetails", { clinic: clinic })}
-        >
+        <Pressable style={styles.btnPrimary} onPress={() => navigation.navigate("ClinicDetails", { clinic })}>
           <Text style={styles.btnPrimaryText}>Ver clínica</Text>
         </Pressable>
 
         <Pressable
           style={styles.btnOutline}
           onPress={() => {
+            // ✅ Si NO hay usuario: ir a Login y pasar la clínica (para validación/registro)
             if (!user) {
-              navigation.navigate("Login");
+              navigation.navigate("Login", { selectedClinic: clinic });
               return;
             }
-            // Agendar directo:
+            // ✅ Si SÍ hay usuario: ir al dashboard de cliente a Agendar
             navigation.navigate("ClientDashboard", { screen: "Citas", params: { screen: "Agendar" } });
           }}
         >
@@ -290,13 +285,8 @@ function PickerModal({ visible, title, items, selected, onClose, onSelect }) {
             renderItem={({ item }) => {
               const isSelected = item === selected;
               return (
-                <Pressable
-                  style={[styles.modalItem, isSelected && styles.modalItemActive]}
-                  onPress={() => onSelect(item)}
-                >
-                  <Text style={[styles.modalItemText, isSelected && styles.modalItemTextActive]}>
-                    {item}
-                  </Text>
+                <Pressable style={[styles.modalItem, isSelected && styles.modalItemActive]} onPress={() => onSelect(item)}>
+                  <Text style={[styles.modalItemText, isSelected && styles.modalItemTextActive]}>{item}</Text>
                 </Pressable>
               );
             }}

@@ -26,7 +26,7 @@ export default function AdminHomeScreen({ navigation }) {
   const [stats, setStats] = useState({
     clinics_total: 0,
     clinics_active: 0,
-    clinics_pending: 0,
+    clinics_pending: 0, // <- aquí mostramos solicitudes reales
     users_total: 0,
     admins_total: 0,
     vets_total: 0,
@@ -43,12 +43,27 @@ export default function AdminHomeScreen({ navigation }) {
     [token]
   );
 
+  // ✅ NUEVO: contar solicitudes pendientes reales
+  const fetchPendingRequestsCount = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/admin/clinic-requests?status=pending`, { headers });
+      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+      setStats((prev) => ({ ...prev, clinics_pending: list.length }));
+    } catch (e) {
+      // si falla, no bloquea el dashboard
+      setStats((prev) => ({ ...prev, clinics_pending: prev.clinics_pending ?? 0 }));
+    }
+  };
+
   const fetchStats = async () => {
     setError("");
     setLoading(true);
     try {
       const res = await axios.get(`${API_URL}/admin/dashboard`, { headers });
       setStats((prev) => ({ ...prev, ...(res.data || {}) }));
+
+      // ✅ suma el conteo real de solicitudes pendientes
+      await fetchPendingRequestsCount();
     } catch (e) {
       setError("No se pudo cargar el resumen del sistema.");
     } finally {
@@ -82,7 +97,7 @@ export default function AdminHomeScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 100 }} // Espacio extra abajo para que no choque con el tab
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.headerContainer}>
@@ -185,10 +200,9 @@ export default function AdminHomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { 
-      flex: 1, 
-      // ESTO ES LO IMPORTANTE: Baja el contenido de la barra de estado
-      paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 20 : 0 
+  safeArea: {
+      flex: 1,
+      paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 20 : 0
   },
   headerContainer: {
       paddingHorizontal: 20,
@@ -197,15 +211,15 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 28, fontWeight: "bold" },
   subtitle: { fontSize: 14, opacity: 0.7, marginTop: 5 },
-  
+
   sectionContainer: { paddingHorizontal: 16, marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: '#555' },
 
   alertCard: { marginHorizontal: 16, marginTop: 8, borderWidth: 1, borderRadius: 14, backgroundColor: '#ffebee' },
-  
+
   kpiGrid: { flexDirection: "row", justifyContent: 'space-between', gap: 10 },
   kpiCard: { flex: 1, borderRadius: 16, elevation: 2, backgroundColor: '#fff' },
-  
+
   card: { marginHorizontal: 16, marginTop: 20, borderRadius: 20, elevation: 4, backgroundColor: '#fff', paddingBottom: 10 },
   quickRow: { flexDirection: "row", gap: 15 },
   quickBtn: { flex: 1, borderRadius: 12 },
