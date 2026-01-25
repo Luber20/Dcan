@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ClinicController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\AvailabilityController; 
+use App\Http\Controllers\Api\CatalogController; // Asegúrate de importar esto
 
 // ==========================================
 // 🌍 RUTAS PÚBLICAS
@@ -22,7 +23,7 @@ Route::get('/clinics/{clinic}', [ClinicController::class, 'show']);
 
 Route::get('/veterinarians/{id}/availability', [AvailabilityController::class, 'getPublicAvailability']);
 
-Route::get('/catalogs', [App\Http\Controllers\Api\CatalogController::class, 'index']);
+Route::get('/catalogs', [CatalogController::class, 'index']);
 
 // ==========================================
 // 🔐 RUTAS PROTEGIDAS (Sanctum)
@@ -37,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/my-menu', [MenuController::class, 'index']);
     Route::apiResource('pets', PetController::class);
+
+    // ✅ NUEVA RUTA: PARA QUE EL VETERINARIO VEA LA FICHA (QR)
+    Route::get('/vet/pets/{id}', [PetController::class, 'showForVet']);
 
     // RUTAS PARA CLIENTES
     Route::get('/appointments/next', [AppointmentController::class, 'nextAppointment']);
@@ -111,25 +115,22 @@ Route::middleware('auth:sanctum')->group(function () {
              ];
         });
         
-        // 👥 GESTIÓN DE USUARIOS (¡AQUÍ ESTABA EL FALTANTE!)
+        // 👥 GESTIÓN DE USUARIOS
         Route::get('/admin/users', function () {
              return \App\Models\User::with('roles', 'clinic')->orderBy('id', 'desc')->get();
         });
 
-        // ✅ ESTA LÍNEA ES LA QUE SOLUCIONA EL ERROR 405:
-        // Permite crear usuarios (Dueños, Vets, Clientes) usando la función nueva
         Route::post('/admin/users', [RegisterController::class, 'registerAdminUser']);
         
-        // Rutas para editar/eliminar usuarios desde SuperAdmin
         Route::put('/admin/users/{user}', [ClinicController::class, 'updateGlobalUser']);
         Route::delete('/admin/users/{user}', [ClinicController::class, 'deleteGlobalUser']);
         Route::patch('/admin/users/{user}/toggle', [ClinicController::class, 'toggleClient']);
 
-        // ... Dentro del grupo superadmin ...
-        Route::post('/admin/species', [App\Http\Controllers\Api\CatalogController::class, 'storeSpecies']);
-        Route::delete('/admin/species/{id}', [App\Http\Controllers\Api\CatalogController::class, 'deleteSpecies']);
+        // Catálogos
+        Route::post('/admin/species', [CatalogController::class, 'storeSpecies']);
+        Route::delete('/admin/species/{id}', [CatalogController::class, 'deleteSpecies']);
 
-        Route::post('/admin/breeds', [App\Http\Controllers\Api\CatalogController::class, 'storeBreed']);
-        Route::delete('/admin/breeds/{id}', [App\Http\Controllers\Api\CatalogController::class, 'deleteBreed']);
+        Route::post('/admin/breeds', [CatalogController::class, 'storeBreed']);
+        Route::delete('/admin/breeds/{id}', [CatalogController::class, 'deleteBreed']);
     });
 });

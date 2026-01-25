@@ -15,7 +15,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación para mostrarte las veterinarias cercanas y guardar direcciones exactas."
+        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación para mostrarte las veterinarias cercanas y guardar direcciones exactas.",
+        "NSCameraUsageDescription": "Necesitamos acceso a la cámara para escanear el QR de las mascotas."
       }
     },
     "android": {
@@ -25,7 +26,8 @@
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
       ],
       "package": "com.dcan.mobile",
       "edgeToEdgeEnabled": true
@@ -40,6 +42,12 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite que $(PRODUCT_NAME) acceda a tu cámara."
         }
       ]
     ]

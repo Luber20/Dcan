@@ -1,11 +1,14 @@
 import React, { useState, useCallback } from "react";
-import { View, StyleSheet, FlatList, RefreshControl, Text, ActivityIndicator } from "react-native";
-import { Card, Title, Paragraph, Avatar, FAB } from "react-native-paper"; // ✅ Esta línea solo debe estar una vez
+import { View, StyleSheet, FlatList, RefreshControl, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import { Card, Title, Paragraph, Avatar, FAB } from "react-native-paper"; 
 import { useTheme } from "../../context/ThemeContext";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 import { API_URL } from "../../config/api";
 import { Ionicons } from "@expo/vector-icons";
+
+// ✅ 1. IMPORTAR EL COMPONENTE QR
+import ShowPetQR from "../../components/ShowPetQR";
 
 export default function PetsScreen() {
   const { theme } = useTheme();
@@ -13,6 +16,16 @@ export default function PetsScreen() {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ✅ 2. ESTADOS PARA EL QR
+  const [qrVisible, setQrVisible] = useState(false);
+  const [selectedPetQR, setSelectedPetQR] = useState(null);
+
+  // ✅ 3. FUNCIÓN PARA ABRIR EL QR
+  const openQR = (pet) => {
+    setSelectedPetQR(pet);
+    setQrVisible(true);
+  };
 
   // Cargar mascotas
   const fetchPets = async () => {
@@ -45,7 +58,7 @@ export default function PetsScreen() {
     >
       <Card.Content style={styles.petCard}>
         
-        {/* 📸 LOGICA DE FOTO: Si tiene URL usa foto, si no, usa texto */}
+        {/* 📸 LOGICA DE FOTO */}
         {item.photo_url ? (
            <Avatar.Image 
               size={60} 
@@ -66,14 +79,26 @@ export default function PetsScreen() {
           <Paragraph style={{ color: theme.colors.subtitle }}>
             {item.species} {item.breed ? `• ${item.breed}` : ""}
           </Paragraph>
-          {/* Mostramos edad si existe */}
           {item.age && (
             <Paragraph style={{ fontSize: 12, color: '#888' }}>{item.age}</Paragraph>
           )}
         </View>
         
-        {/* Icono de lápiz */}
-        <Ionicons name="pencil-outline" size={20} color={theme.colors.subtitle} />
+        {/* ✅ 4. AGREGADO: BOTONES DE ACCIÓN (QR + EDITAR) */}
+        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            
+            {/* Botón QR (Pasaporte) */}
+            <TouchableOpacity 
+                style={{ padding: 5, marginRight: 10 }} 
+                onPress={() => openQR(item)}
+            >
+                <Ionicons name="qr-code" size={24} color={theme.colors.primary} />
+            </TouchableOpacity>
+
+            {/* Icono de lápiz (Editar) */}
+            <Ionicons name="pencil-outline" size={20} color={theme.colors.subtitle} />
+        </View>
+
       </Card.Content>
     </Card>
   );
@@ -106,6 +131,14 @@ export default function PetsScreen() {
         color="#fff"
         onPress={() => navigation.navigate("AddPet")}
       />
+
+      {/* ✅ 5. COMPONENTE MODAL DEL QR (Invisible hasta que se activa) */}
+      <ShowPetQR 
+          visible={qrVisible} 
+          onClose={() => setQrVisible(false)} 
+          pet={selectedPetQR} 
+      />
+
     </View>
   );
 }

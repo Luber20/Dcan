@@ -8,7 +8,7 @@ use App\Models\Pet;
 
 class PetController extends Controller
 {
-    // 1. LISTAR
+    // 1. LISTAR (Solo mascotas del usuario autenticado)
     public function index(Request $request)
     {
         return response()->json(
@@ -23,7 +23,7 @@ class PetController extends Controller
             'name' => 'required|string',
             'species' => 'required|string',
             'gender' => 'required|string',
-            'photo' => 'nullable|file', // Validamos como archivo genérico
+            'photo' => 'nullable|file',
         ]);
 
         $photoUrl = null;
@@ -49,7 +49,7 @@ class PetController extends Controller
         return response()->json($pet, 201);
     }
 
-    // 3. ACTUALIZAR (Editar)
+    // 3. ACTUALIZAR
     public function update(Request $request, $id)
     {
         $pet = $request->user()->pets()->findOrFail($id);
@@ -58,17 +58,13 @@ class PetController extends Controller
             'name' => 'required|string|max:50',
             'species' => 'required|string',
             'gender' => 'required|string',
-            'photo' => 'nullable|file', // Permitir archivo
+            'photo' => 'nullable|file',
         ]);
 
-        // Obtenemos todos los datos MENOS _method y photo
         $data = $request->except(['_method', 'photo']);
 
-        // 📸 Lógica de Imagen para Update
         if ($request->hasFile('photo')) {
-            // Guardamos la nueva
             $path = $request->file('photo')->store('pets', 'public');
-            // Actualizamos la URL en el array de datos
             $data['photo_url'] = asset('storage/' . $path);
         }
 
@@ -83,5 +79,19 @@ class PetController extends Controller
         $pet = $request->user()->pets()->findOrFail($id);
         $pet->delete();
         return response()->json(['message' => 'Mascota eliminada']);
+    }
+
+    // ✅ 5. MOSTRAR PARA VETERINARIO (NUEVO)
+    // Este método busca la mascota por ID sin restringir que sea del usuario actual.
+    public function showForVet($id)
+    {
+        // Traemos también los datos del dueño ('user')
+        $pet = Pet::with('user')->find($id);
+
+        if (!$pet) {
+            return response()->json(['message' => 'Mascota no encontrada'], 404);
+        }
+
+        return response()->json($pet);
     }
 }
