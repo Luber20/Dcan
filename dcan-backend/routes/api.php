@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\AvailabilityController; 
 use App\Http\Controllers\Api\CatalogController; // Asegúrate de importar esto
+use App\Http\Controllers\Api\ClinicRequestController;
+
 
 // ==========================================
 // 🌍 RUTAS PÚBLICAS
@@ -24,6 +26,8 @@ Route::get('/clinics/{clinic}', [ClinicController::class, 'show']);
 Route::get('/veterinarians/{id}/availability', [AvailabilityController::class, 'getPublicAvailability']);
 
 Route::get('/catalogs', [CatalogController::class, 'index']);
+Route::post('/clinic-requests', [ClinicRequestController::class, 'store']);
+
 
 // ==========================================
 // 🔐 RUTAS PROTEGIDAS (Sanctum)
@@ -99,6 +103,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // 👑 SUPER ADMIN
     // ==========================================
     Route::middleware(['role:superadmin|super_admin'])->group(function () {
+Route::patch('/admin/clinic-requests/{id}/mark-paid', [ClinicRequestController::class, 'markPaid']);
+
+    // ✅ Solicitudes de clínicas
+Route::get('/admin/clinic-requests', [ClinicRequestController::class, 'index']);
+Route::patch('/admin/clinic-requests/{id}/approve', [ClinicRequestController::class, 'approve']);
+Route::patch('/admin/clinic-requests/{id}/reject', [ClinicRequestController::class, 'reject']);
+
         
         // Gestión de Clínicas
         Route::get('/admin/clinics', [ClinicController::class, 'indexAdmin']); 

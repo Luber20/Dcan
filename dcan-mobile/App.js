@@ -10,7 +10,9 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import RegisterScreen from "./src/screens/auth/RegisterScreen";
 import ClinicsDirectory from "./src/screens/public/ClinicsDirectory";
-import ClinicDetailsScreen from "./src/screens/public/ClinicDetailsScreen"; 
+import ClinicDetailsScreen from "./src/screens/public/ClinicDetailsScreen";
+import ClinicRequestScreen from "./src/screens/public/ClinicRequestScreen";
+
 import ClientTabs from "./src/navigation/ClientTabs";
 import AdminTabs from "./src/navigation/AdminTabs";
 import SuperAdminTabs from "./src/navigation/SuperAdminTabs";
@@ -19,11 +21,16 @@ import VetTabs from "./src/navigation/VetTabs";
 const Stack = createNativeStackNavigator();
 
 function AppContent() {
-  const { user, loading, loadToken, logout } = useAuth(); // Importamos logout por si acaso
+  const { user, loading, loadToken, logout } = useAuth();
   const { setUserKey } = useTheme();
 
-  useEffect(() => { loadToken(); }, []);
-  useEffect(() => { setUserKey(user?.email || "guest"); }, [user]);
+  useEffect(() => {
+    loadToken();
+  }, []);
+
+  useEffect(() => {
+    setUserKey(user?.email || "guest");
+  }, [user]);
 
   const role = useMemo(() => {
     if (user?.role) return user.role;
@@ -31,44 +38,66 @@ function AppContent() {
     return null;
   }, [user]);
 
-  if (loading) return <View style={{flex:1,justifyContent:'center'}}><ActivityIndicator size="large" color="#2E8B57"/></View>;
+  if (loading)
+    return (
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#2E8B57" />
+      </View>
+    );
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!user ? (
-        // 🌍 ZONA PÚBLICA (Aquí SI existe Login)
         <Stack.Group>
           <Stack.Screen name="ClinicsDirectory" component={ClinicsDirectory} />
           <Stack.Screen name="ClinicDetails" component={ClinicDetailsScreen} />
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
+          <Stack.Screen name="ClinicRequest" component={ClinicRequestScreen} />
         </Stack.Group>
       ) : (
-        // 🔐 ZONA PRIVADA (Aquí NO existe Login, pero existen los Dashboards)
         <Stack.Group>
-          {(role === "superadmin" || role === "super_admin") && <Stack.Screen name="SuperAdminDashboard" component={SuperAdminTabs} />}
-          {(role === "clinic_admin" || role === "admin") && <Stack.Screen name="AdminDashboard" component={AdminTabs} />}
-          
-          {(role === "cliente" || role === "client") && (
-             <Stack.Group>
-                <Stack.Screen name="ClientDashboard" component={ClientTabs} />
-                <Stack.Screen name="ClinicDetails" component={ClinicDetailsScreen} />
-             </Stack.Group>
+          {(role === "superadmin" || role === "super_admin") && (
+            <Stack.Screen name="SuperAdminDashboard" component={SuperAdminTabs} />
           )}
-          {/* Esta es la puerta para el veterinario */}
-{(role === "veterinarian" || role === "veterinario") && (
-  <Stack.Screen name="VetDashboard" component={VetTabs} />
-)}
 
-          {/* Fallback por si el rol falla */}
-{(!role || !["superadmin","super_admin","clinic_admin","admin","cliente","client", "veterinarian", "veterinario"].includes(role)) && (
-    <Stack.Screen name="ErrorRole" component={() => (
-       <View style={{flex:1,justifyContent:'center',alignItems:'center'}}>
-           <Text>Error de Rol o Sesión</Text>
-           <Button title="Cerrar Sesión" onPress={logout}/>
-       </View>
-    )} />
-)}
+          {(role === "clinic_admin" || role === "admin") && (
+            <Stack.Screen name="AdminDashboard" component={AdminTabs} />
+          )}
+
+          {/* ✅ CAMBIO: ya no usamos Stack.Group dentro del condicional */}
+          {(role === "cliente" || role === "client") && (
+            <>
+              <Stack.Screen name="ClientDashboard" component={ClientTabs} />
+              <Stack.Screen name="ClinicDetails" component={ClinicDetailsScreen} />
+            </>
+          )}
+
+          {(role === "veterinarian" || role === "veterinario") && (
+            <Stack.Screen name="VetDashboard" component={VetTabs} />
+          )}
+
+          {(!role ||
+            ![
+              "superadmin",
+              "super_admin",
+              "clinic_admin",
+              "admin",
+              "cliente",
+              "client",
+              "veterinarian",
+              "veterinario",
+            ].includes(role)) && (
+            <Stack.Screen
+              name="ErrorRole"
+              component={() => (
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                  <Text>Error de Rol o Sesión</Text>
+                  <Button title="Cerrar Sesión" onPress={logout} />
+                </View>
+              )}
+            />
+          )}
         </Stack.Group>
       )}
     </Stack.Navigator>
