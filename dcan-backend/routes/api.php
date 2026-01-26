@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Request;
+use App\Http\Controllers\MedicalBlockController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\RegisterController;
@@ -55,7 +56,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // 🩺 RUTAS PARA VETERINARIOS
     // ==========================================
     Route::middleware(['role:veterinarian|staff|veterinario'])->group(function () {
-        
+        // Rutas para bloqueos médicos
+        Route::get('/veterinarian/blocks', [MedicalBlockController::class, 'index']);
+    Route::post('/veterinarian/blocks/toggle', [MedicalBlockController::class, 'toggleBlock']);
         // 1. Agenda y Pacientes
         Route::get('/veterinarian/appointments', [AppointmentController::class, 'getVetAgenda']);
         Route::get('/veterinarian/patients', [AppointmentController::class, 'getPatients']);

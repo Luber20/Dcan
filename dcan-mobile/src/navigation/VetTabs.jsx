@@ -1,24 +1,28 @@
 import React from 'react';
-import { Platform } from 'react-native'; // ✅ Importante para detectar iOS/Android
+import { Platform } from 'react-native'; 
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack'; // ✅ Necesario para el flujo del Escáner
+import { createNativeStackNavigator } from '@react-navigation/native-stack'; 
 import { Ionicons } from '@expo/vector-icons';
 
 // Importaciones existentes
 import VeterinarianHomeScreen from '../screens/Veterinario/VeterinarioHomeScreen';
 import AgendaScreen from '../screens/Veterinario/AgendaScreen'; 
 import GestionMedicaScreen from '../screens/Veterinario/GestionMedicaScreen';
-import DisponibilidadScreen from '../screens/Veterinario/DisponibilidadScreen';
 import PerfilScreen from '../screens/Veterinario/PerfilScreen';
 
-// ✅ IMPORTACIONES NUEVAS (Asegúrate de que estén en esta carpeta)
+// --- IMPORTACIONES DE GESTIÓN DE HORARIOS ---
+import DisponibilidadScreen from '../screens/Veterinario/DisponibilidadScreen'; // Ahora funciona como MENÚ
+import HorariosBaseScreen from '../screens/Veterinario/HorariosBaseScreen';     // La lista Lunes-Domingo
+import BloqueoFechasScreen from '../screens/Veterinario/BloqueoFechasScreen';   // El calendario
+
+// Importaciones Scanner
 import VetScannerScreen from '../screens/Veterinario/VetScannerScreen';
 import VetPetDetailScreen from '../screens/Veterinario/VetPetDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-// ✅ 1. Creamos el Stack para el Escáner (Cámara -> Ficha)
+// ✅ 1. Stack para el Escáner (Cámara -> Ficha)
 function ScannerStack() {
   return (
     <Stack.Navigator>
@@ -40,6 +44,44 @@ function ScannerStack() {
   );
 }
 
+// ✅ 2. STACK DE HORARIOS REESTRUCTURADO
+function HorariosStack() {
+  return (
+    <Stack.Navigator>
+      {/* 1° Pantalla: El menú con los dos botones grandes */}
+      <Stack.Screen 
+        name="DisponibilidadMain" 
+        component={DisponibilidadScreen} 
+        options={{ headerShown: false }} 
+      />
+      
+      {/* 2° Pantalla: Configuración Lunes a Domingo */}
+      <Stack.Screen 
+        name="HorariosBase" 
+        component={HorariosBaseScreen} 
+        options={{ 
+          title: "Horarios Base",
+          headerShown: true,
+          headerStyle: { backgroundColor: '#2E8B57' }, 
+          headerTintColor: '#fff' 
+        }} 
+      />
+
+      {/* 3° Pantalla: El Calendario para días libres */}
+      <Stack.Screen 
+        name="BloqueoFechas" 
+        component={BloqueoFechasScreen} 
+        options={{ 
+          title: "Días Libres y Feriados",
+          headerShown: true,
+          headerStyle: { backgroundColor: '#2E8B57' }, 
+          headerTintColor: '#fff' 
+        }} 
+      />
+    </Stack.Navigator>
+  );
+}
+
 export default function VeterinarianTabs() {
   return (
     <Tab.Navigator
@@ -48,7 +90,7 @@ export default function VeterinarianTabs() {
           let iconName;
           if (route.name === 'Inicio') iconName = 'home';
           else if (route.name === 'Agenda') iconName = 'calendar';
-          else if (route.name === 'Escanear') iconName = 'qr-code'; // ✅ Nuevo Icono
+          else if (route.name === 'Escanear') iconName = 'qr-code';
           else if (route.name === 'Pacientes') iconName = 'paw';
           else if (route.name === 'Horarios') iconName = 'time';
           else if (route.name === 'Perfil') iconName = 'person';
@@ -58,7 +100,6 @@ export default function VeterinarianTabs() {
         tabBarActiveTintColor: '#2E8B57',
         tabBarInactiveTintColor: 'gray',
         headerShown: false,
-        // ✅ Ajuste de altura para que se vea igual que el del Dueño y Cliente
         tabBarStyle: {
           backgroundColor: "#ffffff",
           borderTopColor: "#eee",
@@ -77,12 +118,12 @@ export default function VeterinarianTabs() {
     >
       <Tab.Screen name="Inicio" component={VeterinarianHomeScreen} />
       <Tab.Screen name="Agenda" component={AgendaScreen} />
-      
-      {/* ✅ 2. Agregamos la pestaña del Escáner al medio */}
       <Tab.Screen name="Escanear" component={ScannerStack} />
-
       <Tab.Screen name="Pacientes" component={GestionMedicaScreen} />
-      <Tab.Screen name="Horarios" component={DisponibilidadScreen} />
+
+      {/* ✅ Pestaña de Horarios que contiene todo el Stack nuevo */}
+      <Tab.Screen name="Horarios" component={HorariosStack} />
+
       <Tab.Screen name="Perfil" component={PerfilScreen} />
     </Tab.Navigator>
   );
