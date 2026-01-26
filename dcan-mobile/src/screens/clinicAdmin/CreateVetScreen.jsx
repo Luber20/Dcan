@@ -16,29 +16,35 @@ export default function CreateVetScreen() {
     const [loading, setLoading] = useState(false);
 
     const handleCreateVet = async () => {
-        setLoading(true);
-        setErrors({});
-        try {
-            // Asumimos que el backend asocia este nuevo usuario a la clínica del admin
-            await axios.post(`${API_URL}/clinic/users`, {
-                name,
-                email,
-                password,
-                role: 'veterinarian' // El backend debe asignar este rol
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            navigation.goBack();
-        } catch (error) {
-            if (error.response && error.response.status === 422) {
-                setErrors(error.response.data.errors);
-            } else {
-                console.error("Error creando veterinario:", error);
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
+  setLoading(true);
+  setErrors({});
+  try {
+    const res = await axios.post(
+      `${API_URL}/register-veterinarian`,
+      { name, email, password },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    console.log("✅ Veterinario creado:", res.data);
+    navigation.goBack();
+  } catch (error) {
+    console.log(
+      "❌ Error creando veterinario:",
+      error?.response?.status,
+      error?.response?.data || error?.message || error
+    );
+
+    if (error?.response?.status === 422) {
+      setErrors(error.response.data.errors);
+    } else {
+      // opcional: alerta para que lo veas en la app
+      // Alert.alert("Error", "No se pudo crear el veterinario");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
 
     return (
         <ScrollView style={styles.container}>
