@@ -7,10 +7,11 @@ use App\Models\ClinicRequest;
 use App\Models\Clinic;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class ClinicRequestController extends Controller
 {
-    // ✅ Público: crear solicitud (pago manual primero)
+    // ✅ Público: crear solicitud con comprobante
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -23,103 +24,86 @@ class ClinicRequestController extends Controller
             'owner_name' => 'nullable|string|max:255',
             'ruc' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
+            'payment_proof' => 'nullable|image|max:10240', // Max 10MB
         ]);
 
-        // ✅ Define aquí la tasa anti-spam (manual)
+        // Guardar imagen si existe
+        $proofPath = null;
+        if ($request->hasFile('payment_proof')) {
+            $proofPath = $request->file('payment_proof')->store('payments', 'public');
+        }
+
         $amount = 5.00;
 
         $req = ClinicRequest::create([
-            ...$data,
+            ...collect($data)->except(['payment_proof'])->toArray(),
+            
+            'payment_proof_path' => $proofPath, 
 
-            // Estados de pago primero
-            'status' => 'pending_payment',        // pending_payment -> pending_review -> approved/rejected
+            'status' => 'pending_payment',
             'public_token' => (string) Str::uuid(),
 
             'payment_provider' => 'manual',
             'payment_status' => 'unpaid',
             'amount' => $amount,
             'currency' => 'USD',
-
-            // Aún no hay referencia ni paid_at
             'payment_reference' => null,
             'paid_at' => null,
         ]);
 
         return response()->json([
-            'message' => 'Solicitud creada. Pago manual requerido.',
-            'data' => $req,
-            'payment_instructions' => [
-                'amount' => $amount,
-                'currency' => 'USD',
-                'reference' => $req->public_token,
-                'note' => 'Incluye esta referencia en el comprobante de pago.',
-            ],
+            'message' => 'Solicitud enviada con comprobante.',
+            'data' => $req
         ], 201);
     }
 
-    // ✅ SUPERADMIN: listar solicitudes (opcional filtro por status)
+    // ✅ SUPERADMIN: Listar con URL de la foto
     public function index(Request $request)
     {
-        // status: pending_payment | pending_review | approved | rejected
         $status = $request->query('status');
-
         $q = ClinicRequest::query()->orderByDesc('id');
 
         if ($status) {
             $q->where('status', $status);
         }
 
-        return response()->json($q->get());
+        $requests = $q->get();
+
+        // Agregamos la URL pública
+        foreach ($requests as $r) {
+            if ($r->payment_proof_path) {
+                $r->payment_proof_url = asset('storage/' . $r->payment_proof_path);
+            } else {
+                $r->payment_proof_url = null;
+            }
+        }
+
+        return response()->json($requests);
     }
 
-    // ✅ SUPERADMIN: marcar pago manual como confirmado
+    // ✅ Marcar Pagado
     public function markPaid(Request $request, $id)
     {
         $req = ClinicRequest::findOrFail($id);
-
-        // Si ya está pagada, no repetimos
-        if ($req->payment_status === 'paid') {
-            return response()->json(['message' => 'La solicitud ya está marcada como pagada.'], 200);
-        }
-
-        $data = $request->validate([
-            'payment_reference' => 'nullable|string|max:255', // número de comprobante / referencia bancaria
-        ]);
-
+        if ($req->payment_status === 'paid') return response()->json(['message' => 'Ya pagada.'], 200);
+        
         $req->payment_status = 'paid';
         $req->paid_at = now();
-        $req->payment_reference = $data['payment_reference'] ?? $req->payment_reference;
-
-        // Cuando paga, pasa a revisión
-        $req->status = 'pending_review';
-
+        $req->status = 'pending_review'; 
         $req->reviewed_by = $request->user()->id;
         $req->reviewed_at = now();
         $req->save();
 
-        return response()->json([
-            'message' => 'Pago confirmado. Solicitud lista para revisión.',
-            'request' => $req
-        ]);
+        return response()->json(['message' => 'Pago confirmado.', 'request' => $req]);
     }
 
-    // ✅ SUPERADMIN: aprobar solicitud => SOLO si está pagada
+    // ✅ Aprobar
     public function approve(Request $request, $id)
     {
         $req = ClinicRequest::findOrFail($id);
+        if ($req->status === 'approved') return response()->json(['message' => 'Ya aprobada.'], 200);
+        if ($req->payment_status !== 'paid') return response()->json(['message' => 'Falta pago.'], 422);
 
-        if ($req->status === 'approved') {
-            return response()->json(['message' => 'La solicitud ya fue aprobada.'], 200);
-        }
-
-        // ✅ Requisito de pago primero
-        if ($req->payment_status !== 'paid') {
-            return response()->json([
-                'message' => 'No se puede aprobar: la solicitud aún no registra pago (manual).'
-            ], 422);
-        }
-
-        // Crear clínica real
         $clinic = Clinic::create([
             'name' => $req->clinic_name,
             'province' => $req->province,
@@ -135,30 +119,18 @@ class ClinicRequestController extends Controller
         $req->reviewed_at = now();
         $req->save();
 
-        return response()->json([
-            'message' => 'Solicitud aprobada y clínica creada.',
-            'clinic' => $clinic,
-            'request' => $req
-        ]);
+        return response()->json(['message' => 'Aprobada.', 'clinic' => $clinic]);
     }
 
-    // ✅ SUPERADMIN: rechazar solicitud
+    // ✅ Rechazar
     public function reject(Request $request, $id)
     {
         $req = ClinicRequest::findOrFail($id);
-
-        if ($req->status === 'rejected') {
-            return response()->json(['message' => 'La solicitud ya fue rechazada.'], 200);
-        }
-
+        if ($req->status === 'rejected') return response()->json(['message' => 'Ya rechazada.'], 200);
         $req->status = 'rejected';
         $req->reviewed_by = $request->user()->id;
         $req->reviewed_at = now();
         $req->save();
-
-        return response()->json([
-            'message' => 'Solicitud rechazada.',
-            'request' => $req
-        ]);
+        return response()->json(['message' => 'Rechazada.', 'request' => $req]);
     }
 }

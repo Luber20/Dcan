@@ -26,13 +26,14 @@ class ClinicRequest extends Model
         'reviewed_by',
         'reviewed_at',
 
-        // ✅ Pago primero
-        'public_token',       // token público para consultar estado sin cuenta
+        // ✅ Pago
+        'public_token',       // token público
         'payment_status',     // unpaid | paid | refunded
         'amount',             // monto
         'currency',           // USD
         'payment_provider',   // stripe | payphone | paypal | manual
         'payment_reference',  // id del pago / referencia
         'paid_at',            // fecha pago
+        'payment_proof_path', // 👈 ¡ESTE ES EL QUE FALTABA!
     ];
 }
