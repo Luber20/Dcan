@@ -40,6 +40,7 @@ export default function ScheduleScreen({ navigation }) {
   const services = ["Consulta", "Vacuna", "Estética", "Cirugía", "Otro"];
 
   // 🛠 LÓGICA: GENERACIÓN DINÁMICA DESDE EL BACKEND
+  // 🛠 LÓGICA: CARGA DIRECTA DESDE EL BACKEND (Bloqueos y Almuerzos incluidos)
   const generateTimeSlots = useCallback(async () => {
     if (!selectedVet) {
       setAvailableSlots([]);
@@ -49,89 +50,30 @@ export default function ScheduleScreen({ navigation }) {
     try {
       const formattedDate = format(date, "yyyy-MM-dd");
 
-      // 1. Obtener disponibilidad configurada del veterinario (PÚBLICA)
-      const configRes = await axios.get(`${API_URL}/veterinarians/${selectedVet}/availability`);
-      const config = configRes.data;
-
-      // 2. Determinar el día de la semana (Normalizado)
-      const nombreDiaRaw = format(date, "EEEE", { locale: es });
-      const nombreDia =
-        nombreDiaRaw.charAt(0).toUpperCase() +
-        nombreDiaRaw.slice(1).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-      const diaConfig = config[nombreDia];
-
-      if (!diaConfig || !diaConfig.is_active) {
-        setAvailableSlots([]);
-        return;
-      }
-
-      // 3. Obtener citas ocupadas (PROTEGIDA)
-      const appointmentsRes = await axios.get(`${API_URL}/appointments`, {
-        params: { date: formattedDate, veterinarian_id: selectedVet },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined, // ✅ NUEVO
+      const response = await axios.get(`${API_URL}/appointments/available-slots`, {
+        params: { 
+          date: formattedDate, 
+          veterinarian_id: selectedVet 
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
-      const occupiedTimes = (appointmentsRes.data || []).map((app) => app.time.substring(0, 5));
+      const slots = response.data.map((hora) => {
+        let [h, m] = hora.split(":").map(Number);
+        let mEnd = m + 30;
+        let hEnd = h;
+        if (mEnd === 60) { hEnd++; mEnd = 0; }
+        const nextTime = `${hEnd.toString().padStart(2, "0")}:${mEnd.toString().padStart(2, "0")}`;
 
-      // 4. Generar rangos basados en la DB
-      let slots = [];
-      let current = diaConfig.start_time.substring(0, 5);
-      const end = diaConfig.end_time.substring(0, 5);
-      const lunchS = diaConfig.lunch_start.substring(0, 5);
-      const lunchE = diaConfig.lunch_end.substring(0, 5);
-
-      const ahora = new Date();
-
-      while (current < end) {
-        const isLunch = current >= lunchS && current < lunchE;
-        const isOccupied = occupiedTimes.includes(current);
-
-        // Filtro de tiempo real + 2 horas de anticipación
-        let isPast = false;
-        if (isSameDay(date, ahora)) {
-          const [h, m] = current.split(":").map(Number);
-          const horaCita = new Date(date);
-          horaCita.setHours(h, m, 0, 0);
-
-          const margenAnticipacion = 2 * 60 * 60 * 1000;
-          if (horaCita.getTime() - ahora.getTime() < margenAnticipacion) {
-            isPast = true;
-          }
-        }
-
-        if (!isLunch && !isOccupied && !isPast) {
-          let [h, m] = current.split(":").map(Number);
-          let mEnd = m + 30;
-          let hEnd = h;
-          if (mEnd === 60) {
-            hEnd++;
-            mEnd = 0;
-          }
-          const nextTime = `${hEnd.toString().padStart(2, "0")}:${mEnd.toString().padStart(2, "0")}`;
-
-          slots.push({
-            label: `${current} - ${nextTime}`,
-            value: current,
-          });
-        }
-
-        let [h, m] = current.split(":").map(Number);
-        m += 30;
-        if (m === 60) {
-          h++;
-          m = 0;
-        }
-        current = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-      }
+        return {
+          label: `${hora} - ${nextTime}`,
+          value: hora,
+        };
+      });
 
       setAvailableSlots(slots);
     } catch (error) {
-      console.log(
-        "❌ Error cargando disponibilidad dinámica:",
-        error?.response?.status,
-        error?.response?.data || error?.message || error
-      );
+      console.log("❌ Error cargando disponibilidad:", error);
       setAvailableSlots([]);
     }
   }, [selectedVet, date, token]);
@@ -248,7 +190,7 @@ export default function ScheduleScreen({ navigation }) {
       }
       resetForm();
       setIsFormVisible(false);
-      navigation.navigate("Citas");
+      
     } catch (error) {
       console.log("❌ Error agendando:", error?.response?.status, error?.response?.data || error);
       Alert.alert("Error", "No pudimos procesar la cita.");
@@ -257,8 +199,8 @@ export default function ScheduleScreen({ navigation }) {
     }
   };
 
-  // Límite de 30 días para el calendario
-  const maxDate = addDays(new Date(), 30);
+  // Límite de 90 días para el calendario
+  const maxDate = addDays(new Date(), 90);
 
   if (!isFormVisible) {
     return (

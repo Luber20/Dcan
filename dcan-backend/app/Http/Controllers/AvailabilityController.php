@@ -17,30 +17,27 @@ class AvailabilityController extends Controller
         try {
             $userId = Auth::id();
             
-            // Obtenemos los registros de la BD y los organizamos por día (keyBy)
+            // Obtenemos los registros y los organizamos por día
             $availability = Availability::where('user_id', $userId)->get()->keyBy('day');
 
-            // Lista de días que la App espera recibir SÍ o SÍ
             $diasSemana = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
             $response = [];
 
             foreach ($diasSemana as $dia) {
-                // CASO A: Ya existe configuración en la BD
                 if (isset($availability[$dia])) {
                     $item = $availability[$dia];
                     $response[$dia] = [
                         'activo'          => (bool)$item->is_active,
-                        'inicio'          => substr($item->start_time, 0, 5),
-                        'fin'             => substr($item->end_time, 0, 5),
-                        'almuerzo_inicio' => substr($item->lunch_start, 0, 5),
-                        'almuerzo_fin'    => substr($item->lunch_end, 0, 5),
+                        // Añadimos verificación de nulos antes del substr para evitar errores
+                        'inicio'          => $item->start_time ? substr($item->start_time, 0, 5) : '09:00',
+                        'fin'             => $item->end_time ? substr($item->end_time, 0, 5) : '18:00',
+                        'almuerzo_inicio' => $item->lunch_start ? substr($item->lunch_start, 0, 5) : '12:00',
+                        'almuerzo_fin'    => $item->lunch_end ? substr($item->lunch_end, 0, 5) : '13:00',
                     ];
                 } 
-                // CASO B: Usuario nuevo (No tiene registro), enviamos DEFAULT
                 else {
-                    // Por defecto activamos Lunes a Viernes
+                    // Valores por defecto para días sin registro
                     $esLaborable = !in_array($dia, ['Sabado', 'Domingo']);
-                    
                     $response[$dia] = [
                         'activo'          => $esLaborable,
                         'inicio'          => '09:00',
@@ -59,6 +56,9 @@ class AvailabilityController extends Controller
         }
     }
 
+    /**
+     * Guarda la configuración masiva enviada desde la App.
+     */
     public function store(Request $request)
     {
         try {
@@ -73,18 +73,20 @@ class AvailabilityController extends Controller
                 Availability::updateOrCreate(
                     ['user_id' => $userId, 'day' => $nombreDia],
                     [
-                        'start_time'  => $config['inicio'],
-                        'end_time'    => $config['fin'],
+                        'start_time'  => $config['inicio'] ?? '09:00',
+                        'end_time'    => $config['fin'] ?? '18:00',
                         'lunch_start' => $config['almuerzo_inicio'] ?? '12:00',
                         'lunch_end'   => $config['almuerzo_fin'] ?? '13:00',
-                        'is_active'   => filter_var($config['activo'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0
+                        // Aseguramos que el booleano se guarde como 1 o 0
+                        'is_active'   => (isset($config['activo']) && $config['activo']) ? 1 : 0
                     ]
                 );
             }
+
             return response()->json(['message' => 'Configuración guardada con éxito']);
             
         } catch (\Exception $e) {
-            Log::error("Error en Availability: " . $e->getMessage());
+            Log::error("Error en Availability Store: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error en el servidor', 
                 'error' => $e->getMessage()
@@ -92,9 +94,11 @@ class AvailabilityController extends Controller
         }
     }
 
+    /**
+     * Vista pública para el cliente al elegir horarios.
+     */
     public function getPublicAvailability($id)
     {
-        // Esta función es para que los CLIENTES vean el horario
         $availability = Availability::where('user_id', $id)
             ->where('is_active', true)
             ->get()

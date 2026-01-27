@@ -28,6 +28,9 @@ class User extends Authenticatable
         'clinic_id', // <--- IMPORTANTE
         'phone',
         'is_active',
+        'specialty',   // Nuevo
+        'bio',         // Nuevo
+        'photo_path' // Nuevo
     ];
 
     protected $hidden = [

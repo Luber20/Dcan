@@ -49,14 +49,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // RUTAS PARA CLIENTES
     Route::get('/appointments/next', [AppointmentController::class, 'nextAppointment']);
-    Route::apiResource('appointments', AppointmentController::class);
+    
     Route::get('/appointments/available-slots', [AppointmentController::class, 'getAvailableSlots']);
+
+    Route::apiResource('appointments', AppointmentController::class);
 
     // ==========================================
     // 🩺 RUTAS PARA VETERINARIOS
     // ==========================================
     // ✅ No se elimina nada: solo se quitan roles inexistentes que causaban 500.
     Route::middleware(['role:veterinarian'])->group(function () {
+        // --- NUEVAS RUTAS DE PERFIL PROFESIONAL ---
+    Route::get('/veterinarian/profile', [App\Http\Controllers\Api\VeterinarianController::class, 'getProfile']);
+    Route::post('/veterinarian/profile/update', [App\Http\Controllers\Api\VeterinarianController::class, 'updateProfile']);
 
         // Rutas para bloqueos médicos
         Route::get('/veterinarian/blocks', [MedicalBlockController::class, 'index']);

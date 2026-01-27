@@ -24,8 +24,9 @@ export default function HorariosBaseScreen() {
   const [saving, setSaving] = useState(false);
   const [dias, setDias] = useState(VALORES_DEFAULT);
   const [showPicker, setShowPicker] = useState(false);
-  const [activeConfig, setActiveConfig] = useState({ dia: null, campo: null });
+  const [activeConfig, setActiveConfig] = useState(null);
   const [pickerDate, setPickerDate] = useState(new Date());
+  const [esNuevoRegistro, setEsNuevoRegistro] = useState(true);
 
   useEffect(() => { fetchCurrentAvailability(); }, []);
 
@@ -37,75 +38,173 @@ export default function HorariosBaseScreen() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const dataRecibida = response.data.dias || response.data;
-      if (dataRecibida && typeof dataRecibida === 'object') setDias(dataRecibida);
-    } catch (error) { console.log(error.message); } finally { setLoading(false); }
+      const primerDia = dataRecibida ? Object.values(dataRecibida)[0] : null;
+      if (primerDia && (primerDia.id !== undefined || primerDia.veterinarian_id !== undefined)) {
+        setDias(dataRecibida);
+        setEsNuevoRegistro(false); 
+      } else {
+        setEsNuevoRegistro(true);
+        setDias(VALORES_DEFAULT);
+      }
+    } catch (error) { 
+      setEsNuevoRegistro(true);
+    } finally { setLoading(false); }
   };
 
-  const saveAvailability = async () => {
+  const abrirReloj = (dia, campo) => {
+    const horaString = dias[dia][campo] || "09:00";
+    const [h, m] = horaString.split(':').map(Number);
+    
+    // TRUCO 1: Seteamos una fecha pero con milisegundos variables 
+    // para que React siempre detecte un cambio de estado
+    const d = new Date(); 
+    d.setHours(h, m, 0, Math.floor(Math.random() * 1000));
+    
+    setPickerDate(d); 
+    setActiveConfig({ dia, campo }); 
+    setShowPicker(true);
+  };
+
+  const handlePickerChange = (event, selectedDate) => {
+    // IMPORTANTE: Primero cerramos para Android
+    setShowPicker(false);
+
+    if (event.type === 'set' && selectedDate && activeConfig) {
+      const h = String(selectedDate.getHours()).padStart(2, '0');
+      const m = String(selectedDate.getMinutes()).padStart(2, '0');
+      const nuevaHora = `${h}:${m}`;
+      
+      const { dia, campo } = activeConfig;
+      
+      setDias(prev => ({ 
+        ...prev, 
+        [dia]: { ...prev[dia], [campo]: nuevaHora } 
+      }));
+    }
+    // TRUCO 2: Limpiamos absolutamente todo para la siguiente vuelta
+    setActiveConfig(null);
+  };
+
+  const saveAvailability = () => {
+    const titulo = esNuevoRegistro ? "¿Confirmar Horario Definitivo?" : "¿Actualizar Jornada Laboral?";
+    const mensaje = esNuevoRegistro
+      ? "Has configurado los horarios de tu clínica por primera vez. Una vez confirmados, los clientes podrán visualizar estos bloques para agendar citas. ¿Deseas establecer esta configuración?"
+      : "Advertencia: Estás modificando tu jornada laboral actual. Recuerda que podrías tener citas agendadas en las horas modificadas. Si existen compromisos previos, aparecerán como 'Nivelación' y deberás atenderlos. ¿Deseas aplicar los cambios?";
+
+    Alert.alert(titulo, mensaje, [
+      { text: "Revisar", style: "cancel" },
+      { text: "Confirmar", onPress: ejecutarGuardado }
+    ]);
+  };
+
+  const ejecutarGuardado = async () => {
     setSaving(true);
     try {
       const token = await SecureStore.getItemAsync("authToken");
       await axios.post(`${API_URL}/veterinarian/availability`, { dias }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      Alert.alert("¡Éxito!", "Horarios guardados.");
-    } catch (error) { Alert.alert("Error", "No se pudo guardar."); } finally { setSaving(false); }
+      Alert.alert("¡Éxito!", "La configuración ha sido guardada.");
+      setEsNuevoRegistro(false); 
+    } catch (error) { 
+      Alert.alert("Error", "No se pudo conectar con el servidor."); 
+    } finally { setSaving(false); }
   };
 
-  const abrirReloj = (dia, campo) => {
-    const [h, m] = dias[dia][campo].split(':').map(Number);
-    const d = new Date(); d.setHours(h, m, 0, 0);
-    setPickerDate(d); setActiveConfig({ dia, campo }); setShowPicker(true);
-  };
-
-  const confirmarHora = (fecha) => {
-    const nuevaHora = `${fecha.getHours().toString().padStart(2, '0')}:${fecha.getMinutes().toString().padStart(2, '0')}`;
-    setDias(prev => ({ ...prev, [activeConfig.dia]: { ...prev[activeConfig.dia], [activeConfig.campo]: nuevaHora } }));
-  };
-
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.primary} />;
+  if (loading) return (
+    <View style={{flex: 1, justifyContent: 'center', backgroundColor: colors.background}}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={{padding: 20}}>
+      <ScrollView contentContainerStyle={{padding: 20}}>
+        <Text style={[styles.mainTitle, {color: colors.primary}]}>Horarios de Atención</Text>
+        <Text style={[styles.mainSubtitle, {color: colors.text}]}>Configura tus horas base y tiempos de descanso.</Text>
+
         {Object.keys(dias).map((dia) => (
-          <Surface key={dia} style={[styles.surface, { backgroundColor: colors.card }]} elevation={1}>
-             <List.Item
+          <Surface key={dia} style={[styles.surface, { backgroundColor: colors.card }]} elevation={2}>
+            <View style={styles.innerContainer}>
+              <List.Item
                 title={dia}
-                titleStyle={{fontWeight: 'bold', color: colors.text}}
-                right={() => <Switch value={dias[dia].activo} onValueChange={() => setDias(prev => ({...prev, [dia]: {...prev[dia], activo: !prev[dia].activo}}))} />}
+                titleStyle={{fontWeight: 'bold', color: colors.text, fontSize: 18}}
+                right={() => (
+                  <Switch 
+                    value={dias[dia].activo} 
+                    onValueChange={() => setDias(prev => ({...prev, [dia]: {...prev[dia], activo: !prev[dia].activo}}))} 
+                    color={colors.primary}
+                  />
+                )}
               />
+              
               {dias[dia].activo && (
                 <View style={styles.timeSection}>
+                  <Text style={[styles.sectionLabel, {color: colors.primary}]}>Jornada Laboral</Text>
                   <View style={styles.row}>
-                    <TouchableOpacity style={[styles.timeBox, {backgroundColor: isDarkMode ? '#252525' : '#F1F8E9'}]} onPress={() => abrirReloj(dia, 'inicio')}>
+                    <TouchableOpacity style={[styles.timeBox, {backgroundColor: isDarkMode ? '#2c2c2c' : '#f0fdf4'}]} onPress={() => abrirReloj(dia, 'inicio')}>
                       <Text style={styles.timeLabel}>Entrada</Text>
                       <Text style={[styles.timeValue, {color: colors.text}]}>{dias[dia].inicio}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.timeBox, {backgroundColor: isDarkMode ? '#252525' : '#F1F8E9'}]} onPress={() => abrirReloj(dia, 'fin')}>
+                    <TouchableOpacity style={[styles.timeBox, {backgroundColor: isDarkMode ? '#2c2c2c' : '#f0fdf4'}]} onPress={() => abrirReloj(dia, 'fin')}>
                       <Text style={styles.timeLabel}>Salida</Text>
                       <Text style={[styles.timeValue, {color: colors.text}]}>{dias[dia].fin}</Text>
                     </TouchableOpacity>
                   </View>
+
+                  <Text style={[styles.sectionLabel, {color: colors.primary, marginTop: 15}]}>Tiempo de Almuerzo</Text>
+                  <View style={styles.row}>
+                    <TouchableOpacity style={[styles.timeBox, {backgroundColor: isDarkMode ? '#2c2c2c' : '#eff6ff'}]} onPress={() => abrirReloj(dia, 'almuerzo_inicio')}>
+                      <Text style={styles.timeLabel}>Inicia</Text>
+                      <Text style={[styles.timeValue, {color: colors.text}]}>{dias[dia].almuerzo_inicio}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.timeBox, {backgroundColor: isDarkMode ? '#2c2c2c' : '#eff6ff'}]} onPress={() => abrirReloj(dia, 'almuerzo_fin')}>
+                      <Text style={styles.timeLabel}>Finaliza</Text>
+                      <Text style={[styles.timeValue, {color: colors.text}]}>{dias[dia].almuerzo_fin}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
+            </View>
           </Surface>
         ))}
-        <Button mode="contained" onPress={saveAvailability} loading={saving} style={styles.btn}>Guardar Cambios</Button>
-        <View style={{height: 50}} />
+        
+        <Button 
+          mode="contained" 
+          onPress={saveAvailability} 
+          loading={saving} 
+          buttonColor={esNuevoRegistro ? colors.primary : '#E67E22'}
+          style={styles.btn}
+        >
+          {esNuevoRegistro ? "Establecer Horario" : "Actualizar Jornada"}
+        </Button>
       </ScrollView>
-      {showPicker && <DateTimePicker value={pickerDate} mode="time" is24Hour={true} display="default" onChange={(e, d) => { setShowPicker(false); if(d) confirmarHora(d); }} />}
+
+      {showPicker && (
+        <DateTimePicker 
+          // El KEY dinámico obliga al componente a destruirse y reconstruirse siempre
+          key={`picker-${activeConfig?.dia}-${activeConfig?.campo}-${new Date().getTime()}`}
+          value={pickerDate} 
+          mode="time" 
+          is24Hour={true} 
+          display={Platform.OS === 'ios' ? 'spinner' : 'clock'} 
+          onChange={handlePickerChange}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  surface: { marginBottom: 10, borderRadius: 10, overflow: 'hidden' },
-  timeSection: { padding: 15 },
-  row: { flexDirection: 'row', gap: 10 },
-  timeBox: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center' },
-  timeLabel: { fontSize: 10, opacity: 0.6 },
-  timeValue: { fontSize: 16, fontWeight: 'bold' },
-  btn: { marginVertical: 20, paddingVertical: 5 }
+  mainTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 5 },
+  mainSubtitle: { fontSize: 14, marginBottom: 20, opacity: 0.7 },
+  surface: { marginBottom: 15, borderRadius: 12, elevation: 2 },
+  innerContainer: { borderRadius: 12, overflow: 'hidden' },
+  timeSection: { padding: 15, paddingTop: 0 },
+  row: { flexDirection: 'row', gap: 12 },
+  timeBox: { flex: 1, padding: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.1)' },
+  timeLabel: { fontSize: 10, marginBottom: 2, textTransform: 'uppercase', color: '#666' },
+  timeValue: { fontSize: 18, fontWeight: 'bold' },
+  btn: { marginVertical: 20, borderRadius: 10, paddingVertical: 5 }
 });

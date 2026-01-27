@@ -1,3 +1,5 @@
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import React, { useState, useCallback } from "react";
 import { View, StyleSheet, ScrollView, RefreshControl, Alert } from "react-native";
 // Se agrega Portal y Modal a las importaciones
@@ -46,6 +48,55 @@ export default function AppointmentsScreen({ navigation }) {
   const hideFicha = () => {
     setVisible(false);
     setSelectedAppointment(null);
+  };
+
+  const imprimirPDF = async () => {
+    if (!selectedAppointment) return;
+
+    const html = `
+      <html>
+        <body style="font-family: 'Helvetica', sans-serif; padding: 30px; color: #333;">
+          <div style="text-align: center; border-bottom: 2px solid #2E8B57; padding-bottom: 10px;">
+            <h1 style="color: #2E8B57; margin-bottom: 5px;">FICHA MÉDICA VETERINARIA</h1>
+            <p style="font-size: 14px; color: #666;">Fecha de emisión: ${new Date().toLocaleDateString()}</p>
+          </div>
+
+          <div style="margin-top: 20px;">
+            <h3 style="background: #f4f4f4; padding: 8px;">DATOS DEL PACIENTE</h3>
+            <p><strong>Mascota:</strong> ${selectedAppointment.pet?.name}</p>
+            <p><strong>Veterinario:</strong> ${selectedAppointment.veterinarian?.name || "Asignado por clínica"}</p>
+            <p><strong>Fecha de Cita:</strong> ${safeFormat(selectedAppointment.date, null, "PPP")}</p>
+          </div>
+
+          <div style="margin-top: 20px;">
+            <h3 style="background: #f4f4f4; padding: 8px;">RESULTADOS DEL EXAMEN</h3>
+            <p><strong>Peso:</strong> ${selectedAppointment.weight || "--"} kg</p>
+            <p><strong>Temperatura:</strong> ${selectedAppointment.temperature || "--"} °C</p>
+            
+            <p><strong>DIAGNÓSTICO:</strong></p>
+            <p style="border-left: 4px solid #2E8B57; padding-left: 10px; font-style: italic;">
+              ${selectedAppointment.diagnosis || "No registrado"}
+            </p>
+
+            <p><strong>TRATAMIENTO RECOMENDADO:</strong></p>
+            <p style="border-left: 4px solid #2E8B57; padding-left: 10px; font-style: italic;">
+              ${selectedAppointment.treatment || "No registrado"}
+            </p>
+          </div>
+
+          <div style="margin-top: 50px; text-align: center; font-size: 12px; color: #888;">
+            <p>Este documento es una copia digital de la consulta médica.</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+    } catch (error) {
+      Alert.alert("Error", "No se pudo generar el archivo PDF.");
+    }
   };
 
   const safeFormat = (dateStr, timeStr, formatStr) => {
@@ -157,37 +208,63 @@ export default function AppointmentsScreen({ navigation }) {
 
       {/* MODAL DE LA FICHA MÉDICA PARA EL CLIENTE */}
       <Portal>
-        <Modal visible={visible} onDismiss={hideFicha} contentContainerStyle={styles.modalContent}>
+        <Modal 
+          visible={visible} 
+          onDismiss={hideFicha} 
+          contentContainerStyle={[styles.modalContent, { backgroundColor: theme.colors.card }]}
+        >
           <View style={styles.modalHeader}>
             <Title style={{ color: '#fff' }}>Ficha de la Cita</Title>
             <Text style={{ color: '#fff', opacity: 0.8 }}>{selectedAppointment?.pet?.name}</Text>
           </View>
+          
           <ScrollView style={{ padding: 20 }}>
             <Text style={styles.modalLabel}>🩺 DIAGNÓSTICO:</Text>
-            <Text style={styles.modalText}>{selectedAppointment?.diagnosis || "No hay diagnóstico registrado."}</Text>
+            <Text style={[styles.modalText, { color: theme.colors.text }]}>
+              {selectedAppointment?.diagnosis || "No hay diagnóstico registrado."}
+            </Text>
             
             <Divider style={styles.modalDivider} />
             
             <Text style={styles.modalLabel}>💊 TRATAMIENTO / RECETA:</Text>
-            <Text style={styles.modalText}>{selectedAppointment?.treatment || "No hay tratamiento registrado."}</Text>
+            <Text style={[styles.modalText, { color: theme.colors.text }]}>
+              {selectedAppointment?.treatment || "No hay tratamiento registrado."}
+            </Text>
 
             <Divider style={styles.modalDivider} />
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <View>
                 <Text style={styles.modalLabel}>⚖️ PESO:</Text>
-                <Text style={styles.modalText}>{selectedAppointment?.weight || "--"} kg</Text>
+                <Text style={[styles.modalText, { color: theme.colors.text }]}>
+                  {selectedAppointment?.weight || "--"} kg
+                </Text>
               </View>
               <View>
                 <Text style={styles.modalLabel}>🌡️ TEMP:</Text>
-                <Text style={styles.modalText}>{selectedAppointment?.temperature || "--"} °C</Text>
+                <Text style={[styles.modalText, { color: theme.colors.text }]}>
+                  {selectedAppointment?.temperature || "--"} °C
+                </Text>
               </View>
             </View>
 
+            {/* --- AQUÍ ESTÁ EL NUEVO BOTÓN DE IMPRIMIR --- */}
             <Button 
               mode="contained" 
+              icon="printer"
+              onPress={imprimirPDF} 
+              buttonColor="#2E8B57" 
+              style={{ marginTop: 20, borderRadius: 10 }}
+              labelStyle={{ color: '#fff', fontWeight: 'bold' }}
+            >
+              Descargar Ficha PDF
+            </Button>
+
+            <Button 
+              mode="text" 
               onPress={hideFicha} 
-              style={{ marginTop: 20, marginBottom: 10, backgroundColor: theme.colors.primary }}
+              style={{ marginTop: 10, marginBottom: 20 }}
+              textColor={theme.colors.primary}
             >
               Cerrar
             </Button>

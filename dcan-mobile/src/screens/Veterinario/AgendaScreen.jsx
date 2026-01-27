@@ -1,3 +1,4 @@
+import { useTheme } from '../../context/ThemeContext';
 import React, { useState, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, RefreshControl, Alert, 
@@ -11,6 +12,9 @@ import * as SecureStore from "expo-secure-store";
 import { API_URL } from "../../config/api";
 
 const AgendaScreen = () => {
+  const { theme } = useTheme();
+  const { isDarkMode, colors } = theme;
+
   const [citas, setCitas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,7 +66,6 @@ const AgendaScreen = () => {
           onPress: async () => {
             try {
               const token = await SecureStore.getItemAsync("authToken");
-              // Se intenta con POST. Si falla, verificar en api.php si es Route::put
               await axios.post(`${API_URL}/veterinarian/update-status/${id}`, 
                 { status: 'cancelled' }, 
                 { headers: { 'Authorization': `Bearer ${token}` } }
@@ -70,7 +73,6 @@ const AgendaScreen = () => {
               Alert.alert("Actualizado", "La cita ha sido marcada como inasistencia.");
               fetchCitas();
             } catch (e) {
-              // Log detallado para saber qué responde el servidor
               console.log("Error status:", e.response?.status, e.response?.data);
               Alert.alert("Error", `Servidor respondió: ${e.response?.status || 'Error de red'}`);
             }
@@ -82,23 +84,16 @@ const AgendaScreen = () => {
   };
 
   const handleNumericInput = (text, field) => {
-    // 1. Reemplaza coma por punto y solo permite números y un punto
     let normalized = text.replace(',', '.').replace(/[^0-9.]/g, '');
-    
-    // 2. Bloquea si hay más de un punto
     const parts = normalized.split('.');
     if (parts.length > 2) return;
-
-    // 3. Validación de longitud estricta (Máximo 4 caracteres: ej 38.5)
     if (normalized.length > 4) return;
-
     setFormConsulta({ ...formConsulta, [field]: normalized });
   };
 
   const guardarConsultaYFinalizar = async () => {
     const { peso, temperatura, diagnostico, tratamiento } = formConsulta;
     
-    // VALIDACIÓN: NINGUNO PUEDE QUEDAR EN BLANCO
     if (!peso.trim() || !temperatura.trim() || !diagnostico.trim() || !tratamiento.trim()) {
       Alert.alert('Campos Obligatorios', 'Por favor, completa todos los campos: Peso, Temperatura, Diagnóstico y Tratamiento.');
       return;
@@ -125,63 +120,97 @@ const AgendaScreen = () => {
 
   if (loading && !refreshing) {
     return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <ActivityIndicator color="#2E8B57" size="large" />
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background}}>
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
   return (
-    <View style={styles.mainContainer}>
-      <Text style={styles.title}>Agenda Médica 🐾</Text>
+    <View style={[styles.mainContainer, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.primary }]}>Agenda Médica 🐾</Text>
       
       <FlatList
         data={citas}
         keyExtractor={(item) => item.id.toString()}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchCitas();}} colors={["#2E8B57"]} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={() => {setRefreshing(true); fetchCitas();}} 
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
         }
-        ListEmptyComponent={<Text style={styles.emptyText}>No hay citas pendientes.</Text>}
+        ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.textSecondary }]}>No hay citas pendientes.</Text>}
         renderItem={({ item }) => {
           const mascota = item.mascota || {};
           const notaCliente = item.notes || "El cliente no dejó comentarios.";
+          const esExtraordinaria = item.fuera_de_horario;
 
           return (
-            <Surface style={styles.cardCustom} elevation={2}>
+            <Surface 
+              style={[
+                styles.cardCustom,
+                { backgroundColor: colors.surface },
+                esExtraordinaria && { borderLeftWidth: 5, borderLeftColor: '#FFA500' }
+              ]} 
+              elevation={2}
+            >
+              {esExtraordinaria && (
+                <View style={{ backgroundColor: isDarkMode ? 'rgba(255, 164, 0, 0.2)' : '#FFF4E5', padding: 8, borderRadius: 8, marginBottom: 10 }}>
+                  <Text style={{ color: '#CC7A00', fontWeight: 'bold', fontSize: 11 }}>
+                    ⚠️ COMPROMISO PREVIO (FUERA DE JORNADA)
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.headerRow}>
                 <Avatar.Text 
                   size={45} 
                   label={mascota.nombre?.substring(0,2).toUpperCase() || 'PA'} 
-                  style={{ backgroundColor: '#2E8B57' }} 
+                  style={{ backgroundColor: esExtraordinaria ? '#FFA500' : colors.primary }} 
                 />
                 <View style={styles.headerText}>
-                  <Text style={styles.petNameText}>{mascota.nombre}</Text>
-                  <Text style={styles.ownerText}>👤 Dueño: {item.cliente?.name || 'N/A'}</Text>
+                  <Text style={[styles.petNameText, { color: colors.text }]}>{mascota.nombre}</Text>
+                  <Text style={[styles.ownerText, { color: colors.textSecondary }]}>👤 Dueño: {item.cliente?.name || 'N/A'}</Text>
                 </View>
-                <Badge style={styles.statusBadge}>PENDIENTE</Badge>
+                <Badge style={[styles.statusBadge, esExtraordinaria && { backgroundColor: '#FFA500' }]}>
+                  {esExtraordinaria ? 'NIVELACIÓN' : 'PENDIENTE'}
+                </Badge>
               </View>
 
-              <Divider style={styles.divider} />
+              <Divider style={[styles.divider, { backgroundColor: colors.border }]} />
 
               <View style={styles.detailsContainer}>
                 <View style={styles.infoLine}>
-                  <Text style={styles.infoLabel}>🏥 Servicio:</Text>
-                  <Text style={[styles.infoValBold, {color: '#2E8B57'}]}>{item.motivo}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>🏥 Servicio:</Text>
+                  <Text style={[styles.infoValBold, {color: esExtraordinaria ? '#FFA500' : colors.primary}]}>
+                    {item.motivo}
+                  </Text>
                 </View>
 
-                <View style={styles.notesBox}>
-                  <Text style={styles.notesLabel}>📝 NOTA DEL CLIENTE:</Text>
-                  <Text style={styles.notesText}>"{notaCliente}"</Text>
+                <View style={[
+                  styles.notesBox, 
+                  { backgroundColor: isDarkMode ? colors.surfaceVariant : '#F9F9F9' },
+                  esExtraordinaria && { borderLeftColor: '#FFA500' },
+                  !esExtraordinaria && { borderLeftColor: colors.primary }
+                ]}>
+                  <Text style={[styles.notesLabel, esExtraordinaria ? { color: '#FFA500' } : { color: colors.primary }]}>
+                    📝 NOTA DEL CLIENTE:
+                  </Text>
+                  <Text style={[styles.notesText, { color: colors.text }]}>"{notaCliente}"</Text>
                 </View>
 
                 <View style={styles.infoLine}>
-                  <Text style={styles.infoLabel}>📅 Cuándo:</Text>
-                  <Text style={styles.infoVal}>{item.date} • {item.hora_formateada || item.time}</Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>📅 Cuándo:</Text>
+                  <Text style={[styles.infoVal, { color: colors.text }, esExtraordinaria && { fontWeight: 'bold' }]}>
+                    {item.date} • {item.hora_formateada || item.time}
+                  </Text>
                 </View>
 
-                <View style={styles.infoRowGrid}>
-                  <Text style={styles.infoVal}><Text style={{fontWeight:'bold'}}>Edad:</Text> {mascota.edad}</Text>
-                  <Text style={styles.infoVal}><Text style={{fontWeight:'bold'}}>Sexo:</Text> {mascota.sexo}</Text>
+                <View style={[styles.infoRowGrid, { backgroundColor: isDarkMode ? colors.surfaceVariant : '#F8FDF9' }]}>
+                  <Text style={[styles.infoVal, { color: colors.text }]}><Text style={{fontWeight:'bold'}}>Edad:</Text> {mascota.edad}</Text>
+                  <Text style={[styles.infoVal, { color: colors.text }]}><Text style={{fontWeight:'bold'}}>Sexo:</Text> {mascota.sexo}</Text>
                 </View>
               </View>
 
@@ -196,7 +225,7 @@ const AgendaScreen = () => {
                     setFormConsulta({ peso: '', temperatura: '', diagnostico: '', tratamiento: '' });
                     setModalVisible(true);
                   }}
-                  style={[styles.btnAction, styles.btnSolid]}
+                  style={[styles.btnAction, styles.btnSolid, { backgroundColor: esExtraordinaria ? '#FFA500' : colors.primary }]}
                 >
                   <Text style={styles.btnTextWhite}>Atender ahora</Text>
                 </TouchableOpacity>
@@ -208,17 +237,34 @@ const AgendaScreen = () => {
 
       <Modal visible={modalVisible} transparent animationType="slide">
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.overlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalHeader}>Ficha de Atención</Text>
+          <View style={[
+            styles.modalContent, 
+            { 
+              backgroundColor: isDarkMode ? '#1E1E1E' : 'white',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              elevation: 5
+            }
+          ]}>
+            <Text style={[styles.modalHeader, { color: colors.primary }]}>Ficha de Atención</Text>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalSub}>Paciente: <Text style={{fontWeight: 'bold', color: '#333'}}>{citaSeleccionada?.mascota?.nombre}</Text></Text>
+              <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
+                Paciente: <Text style={{fontWeight: 'bold', color: colors.text}}>{citaSeleccionada?.mascota?.nombre}</Text>
+              </Text>
 
               <View style={styles.modalRow}>
                 <View style={{flex: 1, marginRight: 10}}>
-                  <Text style={styles.labelInput}>Peso (kg)</Text>
+                  <Text style={[styles.labelInput, { color: colors.text }]}>Peso (kg)</Text>
                   <TextInput 
                     placeholder="0.0" 
-                    style={styles.input} 
+                    placeholderTextColor={colors.textSecondary}
+                    style={[styles.input, { 
+                      borderColor: colors.border, 
+                      backgroundColor: isDarkMode ? '#2A2A2A' : '#FAFAFA',
+                      color: colors.text 
+                    }]} 
                     keyboardType="numeric" 
                     value={formConsulta.peso} 
                     onChangeText={(t) => handleNumericInput(t, 'peso')} 
@@ -226,10 +272,15 @@ const AgendaScreen = () => {
                   />
                 </View>
                 <View style={{flex: 1}}>
-                  <Text style={styles.labelInput}>Temp (°C)</Text>
+                  <Text style={[styles.labelInput, { color: colors.text }]}>Temp (°C)</Text>
                   <TextInput 
-                    placeholder="38.5" 
-                    style={styles.input} 
+                    placeholder="38.5"
+                    placeholderTextColor={colors.textSecondary}
+                    style={[styles.input, { 
+                      borderColor: colors.border, 
+                      backgroundColor: isDarkMode ? '#2A2A2A' : '#FAFAFA',
+                      color: colors.text 
+                    }]} 
                     keyboardType="numeric" 
                     value={formConsulta.temperatura} 
                     onChangeText={(t) => handleNumericInput(t, 'temperatura')} 
@@ -238,14 +289,36 @@ const AgendaScreen = () => {
                 </View>
               </View>
 
-              <Text style={styles.labelInput}>Diagnóstico Médico</Text>
-              <TextInput placeholder="Escribe el diagnóstico..." multiline value={formConsulta.diagnostico} style={[styles.input, styles.textArea]} onChangeText={(t) => setFormConsulta({...formConsulta, diagnostico: t})} />
+              <Text style={[styles.labelInput, { color: colors.text }]}>Diagnóstico Médico</Text>
+              <TextInput 
+                placeholder="Escribe el diagnóstico..."
+                placeholderTextColor={colors.textSecondary}
+                multiline 
+                value={formConsulta.diagnostico} 
+                style={[styles.input, styles.textArea, { 
+                  borderColor: colors.border, 
+                  backgroundColor: isDarkMode ? '#2A2A2A' : '#FAFAFA',
+                  color: colors.text 
+                }]} 
+                onChangeText={(t) => setFormConsulta({...formConsulta, diagnostico: t})} 
+              />
 
-              <Text style={styles.labelInput}>Tratamiento / Receta</Text>
-              <TextInput placeholder="Indica el tratamiento..." multiline value={formConsulta.tratamiento} style={[styles.input, styles.textArea]} onChangeText={(t) => setFormConsulta({...formConsulta, tratamiento: t})} />
+              <Text style={[styles.labelInput, { color: colors.text }]}>Tratamiento / Receta</Text>
+              <TextInput 
+                placeholder="Indica el tratamiento..."
+                placeholderTextColor={colors.textSecondary}
+                multiline 
+                value={formConsulta.tratamiento} 
+                style={[styles.input, styles.textArea, { 
+                  borderColor: colors.border, 
+                  backgroundColor: isDarkMode ? '#2A2A2A' : '#FAFAFA',
+                  color: colors.text 
+                }]} 
+                onChangeText={(t) => setFormConsulta({...formConsulta, tratamiento: t})} 
+              />
               
-              <Button mode="contained" onPress={guardarConsultaYFinalizar} buttonColor="#2E8B57" style={styles.btnFinish}>Finalizar Consulta</Button>
-              <Button onPress={() => setModalVisible(false)} textColor="#666">Cerrar</Button>
+              <Button mode="contained" onPress={guardarConsultaYFinalizar} buttonColor={colors.primary} style={styles.btnFinish}>Finalizar Consulta</Button>
+              <Button onPress={() => setModalVisible(false)} textColor={colors.textSecondary}>Cerrar</Button>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -255,40 +328,40 @@ const AgendaScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, padding: 15, backgroundColor: '#F0F2F5' },
-  title: { fontSize: 24, fontWeight: 'bold', marginTop: 40, marginBottom: 15, color: '#1A4D2E' },
-  cardCustom: { backgroundColor: 'white', borderRadius: 15, padding: 16, marginBottom: 15 },
+  mainContainer: { flex: 1, padding: 15 },
+  title: { fontSize: 24, fontWeight: 'bold', marginTop: 40, marginBottom: 15 },
+  cardCustom: { borderRadius: 15, padding: 16, marginBottom: 15 },
   headerRow: { flexDirection: 'row', alignItems: 'center' },
   headerText: { flex: 1, marginLeft: 12 },
-  petNameText: { fontSize: 17, fontWeight: 'bold', color: '#333' },
-  ownerText: { fontSize: 13, color: '#666' },
+  petNameText: { fontSize: 17, fontWeight: 'bold' },
+  ownerText: { fontSize: 13 },
   statusBadge: { backgroundColor: '#FFA500', color: 'white', fontSize: 10, paddingHorizontal: 8 },
   divider: { marginVertical: 12 },
   detailsContainer: { marginBottom: 10 },
   infoLine: { flexDirection: 'row', marginBottom: 5, alignItems: 'center' },
-  infoLabel: { fontWeight: 'bold', color: '#555', width: 85, fontSize: 13 },
-  infoVal: { color: '#333', fontSize: 13, flex: 1 },
+  infoLabel: { fontWeight: 'bold', width: 85, fontSize: 13 },
+  infoVal: { fontSize: 13, flex: 1 },
   infoValBold: { fontSize: 13, fontWeight: 'bold' },
-  notesBox: { backgroundColor: '#F9F9F9', padding: 10, borderRadius: 8, marginVertical: 8, borderLeftWidth: 4, borderLeftColor: '#2E8B57' },
-  notesLabel: { fontSize: 11, fontWeight: 'bold', color: '#2E8B57', marginBottom: 2 },
-  notesText: { fontSize: 12, color: '#444', fontStyle: 'italic' },
-  infoRowGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, backgroundColor: '#F8FDF9', padding: 8, borderRadius: 8 },
+  notesBox: { padding: 10, borderRadius: 8, marginVertical: 8, borderLeftWidth: 4 },
+  notesLabel: { fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
+  notesText: { fontSize: 12, fontStyle: 'italic' },
+  infoRowGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, padding: 8, borderRadius: 8 },
   actionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 },
   btnAction: { flex: 0.48, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   btnOutline: { borderWidth: 1.5, borderColor: '#d32f2f' },
-  btnSolid: { backgroundColor: '#2E8B57' },
+  btnSolid: {},
   btnTextRed: { color: '#d32f2f', fontWeight: 'bold', fontSize: 13 },
   btnTextWhite: { color: 'white', fontWeight: 'bold', fontSize: 13 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '92%', maxHeight: '85%', backgroundColor: 'white', padding: 20, borderRadius: 20 },
-  modalHeader: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', color: '#2E8B57', marginBottom: 10 },
-  modalSub: { textAlign: 'center', fontSize: 14, marginBottom: 15, color: '#666' },
+  modalContent: { width: '92%', maxHeight: '85%', padding: 20, borderRadius: 20 },
+  modalHeader: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
+  modalSub: { textAlign: 'center', fontSize: 14, marginBottom: 15 },
   modalRow: { flexDirection: 'row' },
-  labelInput: { fontSize: 13, fontWeight: 'bold', color: '#444', marginBottom: 4, marginTop: 8 },
-  input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, marginBottom: 10, backgroundColor: '#FAFAFA', color: '#000' },
+  labelInput: { fontSize: 13, fontWeight: 'bold', marginBottom: 4, marginTop: 8 },
+  input: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 10 },
   textArea: { height: 80, textAlignVertical: 'top' },
   btnFinish: { marginTop: 10, borderRadius: 8 },
-  emptyText: { textAlign: 'center', marginTop: 50, color: '#999', fontSize: 16 }
+  emptyText: { textAlign: 'center', marginTop: 50, fontSize: 16 }
 });
 
 export default AgendaScreen;

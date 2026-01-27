@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\MedicalBlock;
+use App\Models\Appointment; // Asegúrate de importar el modelo
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -17,25 +18,32 @@ class MedicalBlockController extends Controller
             $date = $request->date;
             $vetId = Auth::id();
 
-            // 1. ¿Ya está bloqueado? Lo borramos.
-            $block = MedicalBlock::where('veterinarian_id', $vetId)->where('date', $date)->first();
+            // 1. ¿Ya existe el bloqueo? Si existe, lo quitamos (Desbloquear).
+            $block = MedicalBlock::where('veterinarian_id', $vetId)
+                                 ->whereDate('date', $date)
+                                 ->first();
+
             if ($block) {
                 $block->delete();
                 return response()->json(['message' => 'Día habilitado nuevamente']);
             }
 
-            // 2. IMPORTANTE: Ajuste de nombres de tabla
-            // Si tu tabla se llama 'citas', cambia 'appointments' por 'citas' abajo
-            $hasCitas = DB::table('appointments') 
-                ->where('veterinarian_id', $vetId)
-                ->where('date', $date)
+            // 2. VALIDACIÓN: ¿Hay citas agendadas ese día?
+            // Usamos whereDate para evitar problemas con horas (00:00:00)
+            // Solo contamos citas que NO estén canceladas.
+            $hasCitas = Appointment::where('veterinarian_id', $vetId)
+                ->whereDate('date', $date)
+                ->whereIn('status', ['pending', 'confirmed']) 
                 ->exists();
 
             if ($hasCitas) {
-                return response()->json(['message' => 'No puedes bloquear: hay citas agendadas'], 409);
+                // Código 409 o 400 para que React Native detecte error
+                return response()->json([
+                    'message' => 'No puedes bloquear este día: existen citas pendientes o confirmadas.'
+                ], 400); 
             }
 
-            // 3. Crear el bloqueo
+            // 3. Crear el bloqueo si el día está limpio
             MedicalBlock::create([
                 'veterinarian_id' => $vetId,
                 'date' => $date,
@@ -45,8 +53,7 @@ class MedicalBlockController extends Controller
             return response()->json(['message' => 'Día bloqueado con éxito']);
 
         } catch (\Exception $e) {
-            // Este mensaje aparecerá en tu Alert de React Native para decirnos qué falló
-            return response()->json(['message' => 'Error en Laravel: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
         }
     }
 }
