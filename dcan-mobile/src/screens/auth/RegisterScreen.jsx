@@ -9,7 +9,7 @@ export default function RegisterScreen() {
   const route = useRoute();
   const { registerAction } = useAuth();
 
-const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedClinic : null;
+  const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedClinic : null;
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -18,12 +18,42 @@ const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedC
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // ✅ VALIDACIONES PROFESIONALES AGREGADAS
   const validateForm = () => {
     const newErrors = {};
-    if (!name.trim()) newErrors.name = "El nombre es obligatorio";
-    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email)) newErrors.email = "Email inválido";
-    if (password.length < 8) newErrors.password = "Mínimo 8 caracteres";
-    if (password !== passwordConfirmation) newErrors.passwordConfirmation = "Las contraseñas no coinciden";
+    
+    // 1. Nombre: Mínimo 3 letras y sin números (opcional, pero profesional)
+    if (!name.trim()) {
+      newErrors.name = "El nombre es obligatorio.";
+    } else if (name.trim().length < 3) {
+      newErrors.name = "El nombre es muy corto (mín. 3 letras).";
+    }
+
+    // 2. Email: Regex más robusto para validar formato real
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      newErrors.email = "El email es obligatorio.";
+    } else if (!emailRegex.test(email)) {
+      newErrors.email = "Ingresa un correo electrónico válido.";
+    }
+
+    // 3. Contraseña: Reglas de seguridad (Mayúscula, minúscula, número, mín 8 chars)
+    if (!password) {
+      newErrors.password = "La contraseña es obligatoria.";
+    } else if (password.length < 8) {
+      newErrors.password = "Mínimo 8 caracteres.";
+    } else if (!/[A-Z]/.test(password)) {
+      newErrors.password = "Debe incluir al menos una mayúscula (A-Z).";
+    } else if (!/[a-z]/.test(password)) {
+      newErrors.password = "Debe incluir al menos una minúscula (a-z).";
+    } else if (!/[0-9]/.test(password)) {
+      newErrors.password = "Debe incluir al menos un número (0-9).";
+    }
+
+    // 4. Confirmación
+    if (password !== passwordConfirmation) {
+      newErrors.passwordConfirmation = "Las contraseñas no coinciden.";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -31,7 +61,7 @@ const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedC
 
   const handleRegister = async () => {
     if (loading) return;
-    if (!validateForm()) return;
+    if (!validateForm()) return; // Se detiene si hay errores
 
     setLoading(true);
 
@@ -52,13 +82,11 @@ const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedC
           ? `Te has registrado exitosamente en ${selectedClinic.name}.`
           : "Te has registrado exitosamente."
       );
-      // puedes dejarlo así, App.js cambiará por el user/token
+      // App.js cambiará por el user/token automáticamente
     } else {
       if (result.errors) {
         setErrors(result.errors);
-
-        // ✅ AQUÍ el cambio clave: mostrar mensaje también
-        Alert.alert("Error", result.message || "Revisa los campos e intenta nuevamente.");
+        Alert.alert("Atención", "Por favor corrige los errores marcados en rojo.");
       } else {
         Alert.alert("Error", result.message || "No se pudo registrar.");
       }

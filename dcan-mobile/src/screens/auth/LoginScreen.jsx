@@ -7,7 +7,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { TextInput, Button, Title, Card, Paragraph } from "react-native-paper";
+import { TextInput, Button, Title, Card, Paragraph, HelperText } from "react-native-paper";
 import { useAuth } from "../../context/AuthContext";
 import { useRoute } from "@react-navigation/native";
 
@@ -17,60 +17,83 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // Estado para errores visuales (texto rojo debajo del input)
+  const [emailError, setEmailError] = useState("");
 
   const { login, logout } = useAuth();
 
   // ✅ Si vienes desde "Agendar" (solo si trae id)
   const selectedClinic = route.params?.selectedClinic?.id ? route.params.selectedClinic : null;
 
+  // Validación de formato de email
+  const validateEmail = (text) => {
+    setEmail(text);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (text.length > 0 && !emailRegex.test(text)) {
+        setEmailError("Correo electrónico inválido");
+    } else {
+        setEmailError("");
+    }
+  };
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Atención", "Por favor ingresa email y contraseña");
+    // 1. Validaciones previas
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Campos Vacíos", "Por favor ingresa tu email y contraseña.");
       return;
+    }
+
+    if (emailError) {
+        Alert.alert("Email Incorrecto", "Por favor corrige el formato del correo.");
+        return;
     }
 
     setLoading(true);
-    const result = await login(email.trim().toLowerCase(), password);
-    setLoading(false);
+    
+    // 2. Intento de Login
+    try {
+        const result = await login(email.trim().toLowerCase(), password);
+        setLoading(false);
 
-    if (!result.success) {
-      Alert.alert("Error", result.message || "Credenciales incorrectas.");
-      return;
+        if (!result.success) {
+          Alert.alert("Error de Acceso", result.message || "Credenciales incorrectas. Verifica tu contraseña.");
+          return;
+        }
+
+        const user = result.user;
+        const roles = Array.isArray(user?.roles) ? user.roles : [];
+        const roleNames = roles
+          .map((r) => (typeof r === "string" ? r : r?.name))
+          .filter(Boolean)
+          .map((r) => String(r).toLowerCase().trim());
+
+        const isSuperAdmin = roleNames.includes("superadmin") || roleNames.includes("super_admin");
+        const isClinicAdmin = roleNames.includes("clinic_admin") || roleNames.includes("admin");
+        const isVet = roleNames.includes("veterinario") || roleNames.includes("veterinarian");
+
+        // ✅ Solo restringimos si es cuenta interna (admin/vet). Client queda libre.
+        if (selectedClinic && !isSuperAdmin && (isClinicAdmin || isVet)) {
+          const userClinicId = Number(user?.clinic_id);
+          const targetClinicId = Number(selectedClinic?.id);
+
+          // ✅ Si por error un admin/vet no tiene clinic_id, también bloquea
+          if (!userClinicId || userClinicId !== targetClinicId) {
+            await logout();
+            Alert.alert(
+              "Acceso Restringido 🚫",
+              `Tus credenciales pertenecen a otra veterinaria.\nNo puedes entrar a "${selectedClinic.name}" con esta cuenta.`
+            );
+            return;
+          }
+        }
+        
+        // App.js manejará la navegación al detectar el usuario
+
+    } catch (error) {
+        setLoading(false);
+        Alert.alert("Error de Conexión", "No se pudo conectar al servidor. Revisa tu internet.");
     }
-
-    const user = result.user;
-    const roles = Array.isArray(user?.roles) ? user.roles : [];
-    const roleNames = roles
-      .map((r) => (typeof r === "string" ? r : r?.name))
-      .filter(Boolean)
-      .map((r) => String(r).toLowerCase().trim());
-
-    const isSuperAdmin = roleNames.includes("superadmin") || roleNames.includes("super_admin");
-    const isClinicAdmin = roleNames.includes("clinic_admin") || roleNames.includes("admin");
-    const isVet = roleNames.includes("veterinario") || roleNames.includes("veterinarian");
-
-    // ✅ Solo restringimos si es cuenta interna (admin/vet). Client queda libre.
-    if (selectedClinic && !isSuperAdmin && (isClinicAdmin || isVet)) {
-      const userClinicId = Number(user?.clinic_id);
-      const targetClinicId = Number(selectedClinic?.id);
-
-      // ✅ Si por error un admin/vet no tiene clinic_id, también bloquea
-      if (!userClinicId || userClinicId !== targetClinicId) {
-        await logout();
-        Alert.alert(
-          "Acceso Restringido 🚫",
-          `Tus credenciales pertenecen a otra veterinaria.\nNo puedes entrar a "${selectedClinic.name}" con esta cuenta.`
-        );
-        return;
-      }
-    }
-
-    /**
-     * ✅ IMPORTANTE:
-     * NO hacemos navigation.reset() aquí.
-     * Porque en este stack público NO existe ClientDashboard/AdminDashboard/etc.
-     * Al guardar user/token, App.js re-renderiza y entra SOLO a la zona privada.
-     */
   };
 
   return (
@@ -108,14 +131,16 @@ export default function LoginScreen({ navigation }) {
             <TextInput
               label="Email"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={validateEmail}
               mode="outlined"
               style={styles.input}
               theme={{ roundness: 12 }}
               left={<TextInput.Icon icon="email-outline" />}
               autoCapitalize="none"
               keyboardType="email-address"
+              error={!!emailError}
             />
+            {emailError ? <HelperText type="error">{emailError}</HelperText> : null}
 
             <TextInput
               label="Contraseña"
@@ -138,7 +163,7 @@ export default function LoginScreen({ navigation }) {
               mode="contained"
               onPress={handleLogin}
               loading={loading}
-              disabled={loading}
+              disabled={loading} // Bloquea doble clic
               style={styles.button}
               contentStyle={styles.buttonContent}
               theme={{ roundness: 12 }}
@@ -188,8 +213,8 @@ const styles = StyleSheet.create({
     borderColor: "#c3e6cb",
   },
   card: { width: "100%", borderRadius: 20, elevation: 5, backgroundColor: "#fff" },
-  input: { marginBottom: 16, backgroundColor: "#fff" },
-  button: { marginTop: 10 },
+  input: { marginBottom: 5, backgroundColor: "#fff" }, // Reduje margen porque ahora hay HelperText
+  button: { marginTop: 15 },
   buttonContent: { height: 50 },
   link: { marginTop: 15 },
 
