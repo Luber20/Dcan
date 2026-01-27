@@ -29,27 +29,40 @@ export default function HorariosBaseScreen() {
   const [esNuevoRegistro, setEsNuevoRegistro] = useState(true);
 
   useEffect(() => { fetchCurrentAvailability(); }, []);
-
   const fetchCurrentAvailability = async () => {
-    try {
-      setLoading(true);
-      const token = await SecureStore.getItemAsync("authToken");
-      const response = await axios.get(`${API_URL}/veterinarian/availability?t=${new Date().getTime()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const dataRecibida = response.data.dias || response.data;
-      const primerDia = dataRecibida ? Object.values(dataRecibida)[0] : null;
-      if (primerDia && (primerDia.id !== undefined || primerDia.veterinarian_id !== undefined)) {
-        setDias(dataRecibida);
-        setEsNuevoRegistro(false); 
-      } else {
-        setEsNuevoRegistro(true);
-        setDias(VALORES_DEFAULT);
-      }
-    } catch (error) { 
+  try {
+    setLoading(true);
+    const token = await SecureStore.getItemAsync("authToken");
+    
+    // El timestamp ?t= es vital para que no te traiga datos viejos
+    const response = await axios.get(`${API_URL}/veterinarian/availability?t=${Date.now()}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const data = response.data.dias || response.data;
+
+    // --- LA NUEVA LÓGICA MÁS FLEXIBLE ---
+    // Si 'data' existe y tiene el día 'Lunes', asumimos que ya hay horario guardado.
+    // No verificamos IDs, solo la existencia de la estructura.
+    if (data && data.Lunes) {
+      console.log("✅ Horario detectado. Modo: Actualizar.");
+      setDias(data);
+      setEsNuevoRegistro(false); 
+    } else {
+      console.log("ℹ️ No hay datos guardados. Modo: Establecer.");
       setEsNuevoRegistro(true);
-    } finally { setLoading(false); }
-  };
+      setDias(VALORES_DEFAULT);
+    }
+
+  } catch (error) {
+    // Si la API da 404 (No encontrado), es correcto que sea Nuevo Registro
+    console.log("❌ Error o sin registros: ", error.message);
+    setEsNuevoRegistro(true);
+    setDias(VALORES_DEFAULT);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const abrirReloj = (dia, campo) => {
     const horaString = dias[dia][campo] || "09:00";
