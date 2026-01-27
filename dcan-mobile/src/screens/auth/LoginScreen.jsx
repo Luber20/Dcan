@@ -220,4 +220,4 @@ const styles = StyleSheet.create({
 
   // ✅ estilo opcional para el botón outlined
   linkOutline: { marginTop: 10, borderColor: "#2E8B57" },
-});
+}); 
